@@ -82,6 +82,7 @@ class CarQueueSystem {
     assignNextCar() {
         if (!this.state.currentCar && this.state.carQueue.length > 0) {
             this.state.currentCar = this.state.carQueue.shift();
+            this.state.currentCarStartTime = Date.now();
 
             EventBus.emit(GameEvents.CAR_STARTED, {
                 car: this.state.currentCar,

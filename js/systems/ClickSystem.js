@@ -109,6 +109,8 @@ class ClickSystem {
 
         // Clear current car (CarQueueSystem will assign next)
         this.state.currentCar = null;
+        this.state.currentCarStartTime = null;
+        this.state.lastCarRepairedAt = Date.now();
     }
 
     /**

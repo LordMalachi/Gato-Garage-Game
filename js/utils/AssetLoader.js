@@ -21,6 +21,12 @@ class AssetLoader {
             // Background
             garageBackground: 'assets/background/Garage Background.png',
 
+            // Cheese (cat maid hero) sprites
+            cheeseNormal: 'assets/sprites/Cheese/Cheese-Normal.png',
+            cheeseWrench: 'assets/sprites/Cheese/Cheese-Wrench.png',
+            cheeseGoodJob: 'assets/sprites/Cheese/Cheese-Good Job.png',
+            cheeseAnnoyed: 'assets/sprites/Cheese/Cheese-Annoyed.png',
+
             // Car sprites - damaged versions (need repair)
             car001: 'assets/sprites/cars/car001.png',
             car006: 'assets/sprites/cars/car006.png',

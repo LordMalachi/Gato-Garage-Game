@@ -34,6 +34,8 @@ class GameState {
         // Cars
         this.currentCar = null;
         this.carQueue = []; // Array of Car instances
+        this.currentCarStartTime = null;
+        this.lastCarRepairedAt = 0;
 
         // Auto-repair rate (calculated from workers)
         this.autoRepairRate = 0;
@@ -192,6 +194,8 @@ class GameState {
         // Cars
         this.currentCar = data.currentCar ? Car.deserialize(data.currentCar) : null;
         this.carQueue = (data.carQueue || []).map(c => Car.deserialize(c));
+        this.currentCarStartTime = this.currentCar ? Date.now() : null;
+        this.lastCarRepairedAt = 0;
 
         // Time
         this.lastSaveTime = data.lastSaveTime || Date.now();

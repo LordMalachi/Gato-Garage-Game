@@ -78,6 +78,10 @@ class Renderer {
         // Background image dimensions (for proper scaling)
         this.bgAspectRatio = 1.5; // Will be updated when image loads
 
+        // Cheese sprite timing
+        this.cheeseCelebrateDuration = 2000; // ms
+        this.cheeseAnnoyedThreshold = 10000; // ms
+
         // Resize handling
         this.setupResize();
     }
@@ -184,10 +188,12 @@ class Renderer {
             this.drawEmptyBay();
         }
 
+        // Draw Cheese (cat maid hero) to the right of the car bay
+        this.drawCheese(state);
+
         // Draw characters (only if using procedural background)
         const bgImage = Assets.get('garageBackground');
         if (!bgImage) {
-            this.drawGatoSan(state, interpolation);
             this.drawWorkers(state.workers);
         }
 
@@ -644,6 +650,49 @@ class Renderer {
         ctx.globalAlpha = pulse;
         this.drawText('WAITING...', x + 35, y + 75, this.colors.gatoGreen, 8);
         ctx.globalAlpha = 1;
+    }
+
+    /**
+     * Draw Cheese sprite with state-based expressions
+     */
+    drawCheese(state) {
+        const spriteKey = this.getCheeseSpriteKey(state);
+        const sprite = Assets.get(spriteKey);
+
+        // Position to the right of the lift bay
+        const x = 235;
+        const y = 145;
+        const width = 70;
+        const height = 100;
+
+        if (sprite) {
+            this.bufferCtx.drawImage(sprite, x, y, width, height);
+        } else {
+            // Fallback to procedural character if sprite missing
+            this.drawGatoSan(state, 0);
+        }
+    }
+
+    /**
+     * Pick the appropriate Cheese sprite based on game state
+     * @returns {string} Asset key
+     */
+    getCheeseSpriteKey(state) {
+        const now = Date.now();
+
+        if (state.lastCarRepairedAt && (now - state.lastCarRepairedAt) <= this.cheeseCelebrateDuration) {
+            return 'cheeseGoodJob';
+        }
+
+        if (!state.currentCar) {
+            return 'cheeseNormal';
+        }
+
+        if (state.currentCarStartTime && (now - state.currentCarStartTime) >= this.cheeseAnnoyedThreshold) {
+            return 'cheeseAnnoyed';
+        }
+
+        return 'cheeseWrench';
     }
 
     /**

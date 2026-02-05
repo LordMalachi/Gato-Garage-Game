@@ -139,6 +139,8 @@ class WorkerSystem {
 
         // Clear current car
         this.state.currentCar = null;
+        this.state.currentCarStartTime = null;
+        this.state.lastCarRepairedAt = Date.now();
     }
 
     /**
