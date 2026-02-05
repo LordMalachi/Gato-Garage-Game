@@ -43,6 +43,9 @@ class UIManager {
         EventBus.on(GameEvents.OFFLINE_EARNINGS, (data) => this.showOfflineEarnings(data));
         EventBus.on(GameEvents.NOTIFICATION, (data) => this.showNotification(data.message));
         EventBus.on(GameEvents.GAME_SAVED, () => this.showNotification('Game saved!'));
+        EventBus.on(GameEvents.ACHIEVEMENT_UNLOCKED, (data) => {
+            this.showNotification(`🏆 ${data.achievement.name}!`);
+        });
 
         // Offline modal button
         if (this.elements.offlineOkBtn) {

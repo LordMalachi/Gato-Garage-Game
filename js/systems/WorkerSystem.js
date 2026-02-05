@@ -119,28 +119,7 @@ class WorkerSystem {
      * Complete an auto-repair and process payment
      */
     completeAutoRepair() {
-        const car = this.state.currentCar;
-        if (!car) return;
-
-        // Calculate payment
-        const baseValue = car.getValue();
-        const valueMultiplier = this.state.getCarValueMultiplier();
-        const payment = Math.floor(baseValue * valueMultiplier);
-
-        // Add currency
-        this.state.addCurrency(payment);
-
-        // Emit completion event
-        EventBus.emit(GameEvents.CAR_REPAIRED, {
-            car,
-            payment,
-            isAutoRepair: true
-        });
-
-        // Clear current car
-        this.state.currentCar = null;
-        this.state.currentCarStartTime = null;
-        this.state.lastCarRepairedAt = Date.now();
+        RepairCompletionService.completeRepair(true);
     }
 
     /**

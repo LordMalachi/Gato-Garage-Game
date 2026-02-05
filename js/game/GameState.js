@@ -16,6 +16,9 @@ class GameState {
         this.totalEarned = 0;
         this.totalSpent = 0;
 
+        // Stats
+        this.carsRepaired = 0;
+
         // Click stats
         this.totalClicks = 0;
         this.clickPower = 1; // Base repair per click
@@ -26,6 +29,9 @@ class GameState {
 
         // Upgrades (id -> level)
         this.upgrades = {};
+
+        // Achievements (id -> unlock timestamp)
+        this.achievements = {};
 
         // Workers
         this.workers = []; // Array of Worker instances
@@ -154,8 +160,14 @@ class GameState {
             // Clicks
             totalClicks: this.totalClicks,
 
+            // Stats
+            carsRepaired: this.carsRepaired,
+
             // Upgrades
             upgrades: { ...this.upgrades },
+
+            // Achievements
+            achievements: { ...this.achievements },
 
             // Workers (serialize each)
             workers: this.workers.map(w => w.serialize()),
@@ -184,8 +196,14 @@ class GameState {
         // Clicks
         this.totalClicks = data.totalClicks || 0;
 
+        // Stats
+        this.carsRepaired = data.carsRepaired || 0;
+
         // Upgrades
         this.upgrades = data.upgrades || {};
+
+        // Achievements
+        this.achievements = data.achievements || {};
 
         // Workers
         this.workers = (data.workers || []).map(w => Worker.deserialize(w));

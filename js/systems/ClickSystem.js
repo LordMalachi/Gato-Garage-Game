@@ -23,13 +23,29 @@ class ClickSystem {
 
     /**
      * Handle a click on the game area
-     * @param {number} x - Click X coordinate (relative to game area)
-     * @param {number} y - Click Y coordinate (relative to game area)
+     * @param {number} x - Click X coordinate (relative to game area, in internal resolution)
+     * @param {number} y - Click Y coordinate (relative to game area, in internal resolution)
      * @returns {Object|null} Click result with repair amount and position
      */
     handleClick(x, y) {
         // No current car to repair
         if (!this.state.currentCar) {
+            return null;
+        }
+
+        // Check if click is within car hitbox
+        // Car is drawn at (80, 130) with size 140x140 in internal resolution
+        // Add some padding for forgiving click detection
+        const carHitbox = {
+            x: 70,      // Slight padding left
+            y: 100,     // Include progress bar area above car
+            width: 160, // Slight padding right
+            height: 180 // Include area below car
+        };
+
+        if (x < carHitbox.x || x > carHitbox.x + carHitbox.width ||
+            y < carHitbox.y || y > carHitbox.y + carHitbox.height) {
+            // Click was outside car area
             return null;
         }
 
@@ -90,27 +106,7 @@ class ClickSystem {
      * Complete the current car repair and process payment
      */
     completeRepair() {
-        const car = this.state.currentCar;
-        if (!car) return;
-
-        // Calculate payment
-        const baseValue = car.getValue();
-        const valueMultiplier = this.state.getCarValueMultiplier();
-        const payment = Math.floor(baseValue * valueMultiplier);
-
-        // Add currency
-        this.state.addCurrency(payment);
-
-        // Emit completion event
-        EventBus.emit(GameEvents.CAR_REPAIRED, {
-            car,
-            payment
-        });
-
-        // Clear current car (CarQueueSystem will assign next)
-        this.state.currentCar = null;
-        this.state.currentCarStartTime = null;
-        this.state.lastCarRepairedAt = Date.now();
+        RepairCompletionService.completeRepair(false);
     }
 
     /**

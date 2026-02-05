@@ -17,7 +17,13 @@ class StatsUI {
         this.elements = {
             currencyValue: document.getElementById('currency-value'),
             clickPower: document.getElementById('click-power'),
-            autoRate: document.getElementById('auto-rate')
+            autoRate: document.getElementById('auto-rate'),
+            // Extended stats
+            totalClicks: document.getElementById('stat-total-clicks'),
+            carsRepaired: document.getElementById('stat-cars-repaired'),
+            totalEarned: document.getElementById('stat-total-earned'),
+            totalSpent: document.getElementById('stat-total-spent'),
+            playTime: document.getElementById('stat-play-time')
         };
 
         // Update interval
@@ -73,6 +79,75 @@ class StatsUI {
             if (this.elements.autoRate.textContent !== formatted) {
                 this.elements.autoRate.textContent = formatted;
             }
+        }
+
+        // Update extended stats
+        this.updateExtendedStats();
+    }
+
+    /**
+     * Update extended statistics display
+     */
+    updateExtendedStats() {
+        // Total clicks
+        if (this.elements.totalClicks) {
+            const formatted = NumberFormatter.format(this.state.totalClicks);
+            if (this.elements.totalClicks.textContent !== formatted) {
+                this.elements.totalClicks.textContent = formatted;
+            }
+        }
+
+        // Cars repaired
+        if (this.elements.carsRepaired) {
+            const formatted = NumberFormatter.format(this.state.carsRepaired);
+            if (this.elements.carsRepaired.textContent !== formatted) {
+                this.elements.carsRepaired.textContent = formatted;
+            }
+        }
+
+        // Total earned
+        if (this.elements.totalEarned) {
+            const formatted = NumberFormatter.formatCurrency(this.state.totalEarned);
+            if (this.elements.totalEarned.textContent !== formatted) {
+                this.elements.totalEarned.textContent = formatted;
+            }
+        }
+
+        // Total spent
+        if (this.elements.totalSpent) {
+            const formatted = NumberFormatter.formatCurrency(this.state.totalSpent);
+            if (this.elements.totalSpent.textContent !== formatted) {
+                this.elements.totalSpent.textContent = formatted;
+            }
+        }
+
+        // Play time
+        if (this.elements.playTime) {
+            const totalMs = this.state.totalPlayTime + this.state.getSessionTime();
+            const formatted = this.formatPlayTime(totalMs);
+            if (this.elements.playTime.textContent !== formatted) {
+                this.elements.playTime.textContent = formatted;
+            }
+        }
+    }
+
+    /**
+     * Format play time in human-readable format
+     * @param {number} ms - Time in milliseconds
+     * @returns {string} Formatted time string
+     */
+    formatPlayTime(ms) {
+        const totalSeconds = Math.floor(ms / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        if (hours > 0) {
+            return `${hours}h ${minutes}m`;
+        } else if (minutes > 0) {
+            return `${minutes}m ${seconds}s`;
+        } else {
+            return `${seconds}s`;
         }
     }
 

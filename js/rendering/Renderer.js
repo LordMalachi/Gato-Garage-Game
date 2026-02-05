@@ -96,18 +96,29 @@ class Renderer {
 
             // Maintain aspect ratio
             const aspectRatio = this.internalWidth / this.internalHeight;
-            let width = rect.width;
-            let height = rect.height;
+            let displayWidth = rect.width;
+            let displayHeight = rect.height;
 
-            if (width / height > aspectRatio) {
-                width = height * aspectRatio;
+            // Calculate size that fits within container while maintaining aspect ratio
+            if (displayWidth / displayHeight > aspectRatio) {
+                // Container is wider than needed - constrain by height
+                displayWidth = displayHeight * aspectRatio;
             } else {
-                height = width / aspectRatio;
+                // Container is taller than needed - constrain by width
+                displayHeight = displayWidth / aspectRatio;
             }
 
             // Round to integer for crisp pixels
-            this.canvas.width = Math.floor(width);
-            this.canvas.height = Math.floor(height);
+            displayWidth = Math.floor(displayWidth);
+            displayHeight = Math.floor(displayHeight);
+
+            // Set internal resolution (fixed - this is the pixel buffer)
+            this.canvas.width = this.internalWidth;
+            this.canvas.height = this.internalHeight;
+
+            // Set display size via CSS (this controls how it appears on screen)
+            this.canvas.style.width = displayWidth + 'px';
+            this.canvas.style.height = displayHeight + 'px';
 
             // Disable smoothing after resize
             this.ctx.imageSmoothingEnabled = false;

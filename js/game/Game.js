@@ -11,6 +11,10 @@ class Game {
         this.upgradeSystem = new UpgradeSystem(this.state);
         this.workerSystem = new WorkerSystem(this.state);
         this.carQueueSystem = new CarQueueSystem(this.state);
+        this.achievementSystem = new AchievementSystem(this.state);
+
+        // Initialize repair completion service
+        RepairCompletionService.init(this.state);
 
         // Rendering
         this.renderer = new Renderer('game-canvas');
@@ -102,14 +106,15 @@ class Game {
      * Setup click handler on game canvas
      */
     setupClickHandler() {
-        const clickArea = document.getElementById('click-area');
-        if (!clickArea) {
-            console.warn('Click area not found');
+        // Use the canvas directly for click detection (works with letterboxing)
+        const canvas = this.renderer.canvas;
+        if (!canvas) {
+            console.warn('Canvas not found');
             return;
         }
 
-        clickArea.addEventListener('click', (event) => {
-            const rect = clickArea.getBoundingClientRect();
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
             const x = event.clientX - rect.left;
             const y = event.clientY - rect.top;
 
@@ -117,10 +122,10 @@ class Game {
         });
 
         // Also handle touch for future mobile support
-        clickArea.addEventListener('touchstart', (event) => {
+        canvas.addEventListener('touchstart', (event) => {
             event.preventDefault();
             const touch = event.touches[0];
-            const rect = clickArea.getBoundingClientRect();
+            const rect = canvas.getBoundingClientRect();
             const x = touch.clientX - rect.left;
             const y = touch.clientY - rect.top;
 
@@ -130,10 +135,24 @@ class Game {
 
     /**
      * Handle a click/tap on the game area
-     * @param {number} x - X coordinate
-     * @param {number} y - Y coordinate
+     * @param {number} screenX - Screen X coordinate (relative to click area)
+     * @param {number} screenY - Screen Y coordinate (relative to click area)
      */
-    handleClick(x, y) {
+    handleClick(screenX, screenY) {
+        // Convert screen coordinates to internal resolution coordinates
+        // The renderer uses internal resolution (320x288) but canvas display size varies
+        const canvas = this.renderer.canvas;
+        const internalWidth = this.renderer.internalWidth;
+        const internalHeight = this.renderer.internalHeight;
+
+        // Get actual display size from CSS
+        const displayWidth = parseFloat(canvas.style.width) || canvas.width;
+        const displayHeight = parseFloat(canvas.style.height) || canvas.height;
+
+        // Scale screen coordinates to internal resolution
+        const x = (screenX / displayWidth) * internalWidth;
+        const y = (screenY / displayHeight) * internalHeight;
+
         const result = this.clickSystem.handleClick(x, y);
 
         if (result) {

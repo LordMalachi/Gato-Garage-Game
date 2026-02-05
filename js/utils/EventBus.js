@@ -102,6 +102,9 @@ const GameEvents = {
     GAME_LOADED: 'game:loaded',
     GAME_RESET: 'game:reset',
 
+    // Achievement events
+    ACHIEVEMENT_UNLOCKED: 'achievement:unlocked',
+
     // Offline events
     OFFLINE_EARNINGS: 'offline:earnings',
 
