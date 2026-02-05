@@ -1,6 +1,6 @@
 /**
  * Renderer - Canvas rendering for the game area
- * Uses placeholder graphics until real sprites are available
+ * Pixel-perfect rendering with Game Boy inspired aesthetics
  */
 class Renderer {
     /**
@@ -13,37 +13,70 @@ class Renderer {
 
         // Disable image smoothing for pixel-perfect rendering
         this.ctx.imageSmoothingEnabled = false;
+        this.ctx.mozImageSmoothingEnabled = false;
+        this.ctx.webkitImageSmoothingEnabled = false;
+        this.ctx.msImageSmoothingEnabled = false;
 
-        // Internal resolution (Game Boy inspired)
+        // Internal resolution (Game Boy Color inspired - 160x144 * 2)
         this.internalWidth = 320;
         this.internalHeight = 288;
 
-        // Create offscreen buffer
+        // Create offscreen buffer at internal resolution
         this.buffer = document.createElement('canvas');
         this.buffer.width = this.internalWidth;
         this.buffer.height = this.internalHeight;
         this.bufferCtx = this.buffer.getContext('2d');
         this.bufferCtx.imageSmoothingEnabled = false;
 
-        // Colors from theme
+        // Colors from theme - limited palette for retro feel
         this.colors = {
-            background: '#0a1628',
-            garage: '#1e293b',
-            floor: '#334155',
-            gateFrame: '#1e3a5f',
-            gate: '#0f172a',
+            // Background tones
+            bg0: '#0a1628',      // Darkest
+            bg1: '#1e293b',      // Dark
+            bg2: '#334155',      // Medium
+            bg3: '#475569',      // Light
+
+            // Character colors
             gatoGreen: '#4ade80',
             gatoGreenDark: '#22c55e',
+            gatoGreenLight: '#86efac',
+
+            // Accent colors
             cream: '#fef3c7',
+            creamDark: '#fde68a',
             navy: '#1e3a5f',
+            navyDark: '#0f172a',
             pink: '#f472b6',
-            cyan: '#22d3d3'
+            pinkDark: '#db2777',
+            cyan: '#22d3d3',
+            cyanDark: '#0891b2',
+            purple: '#a855f7',
+
+            // Utility
+            black: '#0f0f1a',
+            white: '#f8fafc'
         };
 
         // Animation state
+        this.time = 0;
         this.gatoFrame = 0;
         this.gatoAnimTimer = 0;
-        this.workerPositions = [];
+
+        // Car transition effect state
+        this.lastCarId = null;
+        this.lastCarWasDamaged = true;
+        this.transitionEffect = {
+            active: false,
+            startTime: 0,
+            duration: 600, // ms
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0
+        };
+
+        // Background image dimensions (for proper scaling)
+        this.bgAspectRatio = 1.5; // Will be updated when image loads
 
         // Resize handling
         this.setupResize();
@@ -68,9 +101,15 @@ class Renderer {
                 height = width / aspectRatio;
             }
 
-            this.canvas.width = width;
-            this.canvas.height = height;
+            // Round to integer for crisp pixels
+            this.canvas.width = Math.floor(width);
+            this.canvas.height = Math.floor(height);
+
+            // Disable smoothing after resize
             this.ctx.imageSmoothingEnabled = false;
+            this.ctx.mozImageSmoothingEnabled = false;
+            this.ctx.webkitImageSmoothingEnabled = false;
+            this.ctx.msImageSmoothingEnabled = false;
         };
 
         resize();
@@ -78,11 +117,48 @@ class Renderer {
     }
 
     /**
+     * Draw a pixel-perfect rectangle
+     */
+    drawRect(x, y, w, h, color) {
+        this.bufferCtx.fillStyle = color;
+        this.bufferCtx.fillRect(
+            Math.floor(x),
+            Math.floor(y),
+            Math.floor(w),
+            Math.floor(h)
+        );
+    }
+
+    /**
+     * Draw a pixel-perfect outlined rectangle
+     */
+    drawRectOutline(x, y, w, h, color, lineWidth = 2) {
+        const ctx = this.bufferCtx;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.strokeRect(
+            Math.floor(x) + 0.5,
+            Math.floor(y) + 0.5,
+            Math.floor(w),
+            Math.floor(h)
+        );
+    }
+
+    /**
+     * Draw pixel text
+     */
+    drawText(text, x, y, color, size = 8) {
+        const ctx = this.bufferCtx;
+        ctx.fillStyle = color;
+        ctx.font = `${size}px "Press Start 2P", monospace`;
+        ctx.fillText(text, Math.floor(x), Math.floor(y));
+    }
+
+    /**
      * Clear the buffer
      */
     clear() {
-        this.bufferCtx.fillStyle = this.colors.background;
-        this.bufferCtx.fillRect(0, 0, this.internalWidth, this.internalHeight);
+        this.drawRect(0, 0, this.internalWidth, this.internalHeight, this.colors.bg0);
     }
 
     /**
@@ -91,28 +167,34 @@ class Renderer {
      * @param {number} interpolation - Frame interpolation (0-1)
      */
     render(state, interpolation) {
+        this.time += 16; // Approximate frame time
+
         this.clear();
 
-        // Draw garage background
-        this.drawGarage();
+        // Draw layers back to front
+        this.drawGarageBackground();
 
-        // Draw car queue in background
-        this.drawCarQueue(state.carQueue);
-
-        // Draw current car
+        // Draw current car on the lift
         if (state.currentCar) {
             this.drawCurrentCar(state.currentCar);
         } else {
+            // Reset car tracking when no car present
+            this.lastCarId = null;
+            this.lastCarWasDamaged = true;
             this.drawEmptyBay();
         }
 
-        // Draw main character (Gato-san)
-        this.drawGatoSan(state, interpolation);
+        // Draw characters (only if using procedural background)
+        const bgImage = Assets.get('garageBackground');
+        if (!bgImage) {
+            this.drawGatoSan(state, interpolation);
+            this.drawWorkers(state.workers);
+        }
 
-        // Draw workers
-        this.drawWorkers(state.workers);
+        // Draw queue display at bottom
+        this.drawCarQueue(state.carQueue);
 
-        // Scale buffer to display canvas
+        // Scale buffer to display canvas with nearest-neighbor
         this.ctx.drawImage(
             this.buffer,
             0, 0,
@@ -124,91 +206,146 @@ class Renderer {
     /**
      * Draw the garage background
      */
-    drawGarage() {
-        const ctx = this.bufferCtx;
+    drawGarageBackground() {
+        const bgImage = Assets.get('garageBackground');
 
-        // Back wall
-        ctx.fillStyle = this.colors.garage;
-        ctx.fillRect(0, 0, this.internalWidth, this.internalHeight * 0.6);
-
-        // Floor
-        ctx.fillStyle = this.colors.floor;
-        ctx.fillRect(0, this.internalHeight * 0.6, this.internalWidth, this.internalHeight * 0.4);
-
-        // Floor tiles pattern
-        ctx.strokeStyle = this.colors.garage;
-        ctx.lineWidth = 1;
-        for (let x = 0; x < this.internalWidth; x += 32) {
-            ctx.beginPath();
-            ctx.moveTo(x, this.internalHeight * 0.6);
-            ctx.lineTo(x, this.internalHeight);
-            ctx.stroke();
+        if (bgImage) {
+            // Draw the background image scaled to fill the internal buffer
+            this.bufferCtx.drawImage(
+                bgImage,
+                0, 0,
+                this.internalWidth, this.internalHeight
+            );
+        } else {
+            // Fallback to procedural background if image not loaded
+            this.drawProceduralBackground();
         }
-
-        // Garage door frame
-        ctx.fillStyle = this.colors.gateFrame;
-        ctx.fillRect(10, 20, 140, 130);
-
-        // Garage door (slightly open)
-        ctx.fillStyle = this.colors.gate;
-        ctx.fillRect(15, 25, 130, 115);
-
-        // Door lines
-        ctx.strokeStyle = this.colors.gateFrame;
-        ctx.lineWidth = 2;
-        for (let y = 35; y < 140; y += 20) {
-            ctx.beginPath();
-            ctx.moveTo(15, y);
-            ctx.lineTo(145, y);
-            ctx.stroke();
-        }
-
-        // Neon sign "GATO GARAGE"
-        this.drawNeonSign(170, 30, "GATO");
-        this.drawNeonSign(170, 55, "GARAGE");
-
-        // Tool rack on wall
-        this.drawToolRack(250, 80);
     }
 
     /**
-     * Draw neon text
-     * @param {number} x - X position
-     * @param {number} y - Y position
-     * @param {string} text - Text to draw
+     * Draw procedural fallback background (used if image fails to load)
      */
-    drawNeonSign(x, y, text) {
+    drawProceduralBackground() {
+        // Back wall with gradient effect (using bands)
+        this.drawRect(0, 0, this.internalWidth, 180, this.colors.bg1);
+        this.drawRect(0, 0, this.internalWidth, 20, this.colors.bg0);
+
+        // Floor
+        this.drawRect(0, 180, this.internalWidth, 108, this.colors.bg2);
+
+        // Floor tile grid pattern
+        for (let x = 0; x < this.internalWidth; x += 32) {
+            this.drawRect(x, 180, 2, 108, this.colors.bg1);
+        }
+        for (let y = 180; y < this.internalHeight; y += 24) {
+            this.drawRect(0, y, this.internalWidth, 2, this.colors.bg1);
+        }
+
+        // Garage door frame (left side)
+        this.drawRect(8, 24, 150, 140, this.colors.navy);
+        this.drawRect(12, 28, 142, 132, this.colors.navyDark);
+
+        // Garage door panels (rolled up look)
+        for (let y = 32; y < 155; y += 20) {
+            this.drawRect(14, y, 138, 16, this.colors.bg0);
+            this.drawRect(14, y, 138, 2, this.colors.navy);
+            this.drawRect(14, y + 14, 138, 2, this.colors.navyDark);
+        }
+
+        // Door track lines
+        this.drawRect(12, 28, 4, 132, this.colors.bg3);
+        this.drawRect(150, 28, 4, 132, this.colors.bg3);
+
+        // Neon sign on wall
+        this.drawNeonSign(170, 35);
+
+        // Tool pegboard
+        this.drawToolRack(255, 60);
+
+        // Workbench
+        this.drawWorkbench(220, 150);
+
+        // Light fixture (simple)
+        this.drawRect(100, 8, 60, 8, this.colors.bg3);
+        this.drawRect(110, 16, 40, 4, this.colors.cream);
+    }
+
+    /**
+     * Draw neon sign "GATO GARAGE"
+     */
+    drawNeonSign(x, y) {
         const ctx = this.bufferCtx;
 
-        // Glow effect
+        // Sign backing board
+        this.drawRect(x - 4, y - 12, 78, 50, this.colors.navyDark);
+        this.drawRectOutline(x - 4, y - 12, 78, 50, this.colors.navy, 2);
+
+        // Neon glow effect (layered rectangles behind text)
         ctx.shadowColor = this.colors.gatoGreen;
-        ctx.shadowBlur = 10;
-        ctx.fillStyle = this.colors.gatoGreen;
-        ctx.font = '12px "Press Start 2P", monospace';
-        ctx.fillText(text, x, y);
+        ctx.shadowBlur = 15;
+
+        // GATO text
+        this.drawText('GATO', x, y, this.colors.gatoGreen, 12);
+        // GARAGE text
+        this.drawText('GARAGE', x - 2, y + 22, this.colors.gatoGreenLight, 10);
 
         // Reset shadow
         ctx.shadowBlur = 0;
+
+        // Accent dots (like neon tube connectors)
+        this.drawRect(x + 62, y - 8, 4, 4, this.colors.gatoGreen);
+        this.drawRect(x + 62, y + 26, 4, 4, this.colors.gatoGreen);
     }
 
     /**
-     * Draw tool rack decoration
-     * @param {number} x - X position
-     * @param {number} y - Y position
+     * Draw tool pegboard
      */
     drawToolRack(x, y) {
-        const ctx = this.bufferCtx;
+        // Pegboard
+        this.drawRect(x, y, 56, 80, this.colors.bg3);
+        this.drawRectOutline(x, y, 56, 80, this.colors.navy, 2);
 
-        // Rack board
-        ctx.fillStyle = this.colors.gateFrame;
-        ctx.fillRect(x, y, 50, 60);
+        // Peg holes pattern
+        for (let py = y + 8; py < y + 75; py += 12) {
+            for (let px = x + 8; px < x + 52; px += 12) {
+                this.drawRect(px, py, 4, 4, this.colors.bg1);
+            }
+        }
 
-        // Tool shapes (simple rectangles)
-        ctx.fillStyle = this.colors.cream;
-        ctx.fillRect(x + 5, y + 5, 8, 30);  // Wrench
-        ctx.fillRect(x + 18, y + 10, 6, 25); // Screwdriver
-        ctx.fillRect(x + 30, y + 5, 12, 8);  // Hammer head
-        ctx.fillRect(x + 33, y + 13, 6, 25); // Hammer handle
+        // Tools hanging
+        // Wrench
+        this.drawRect(x + 8, y + 12, 6, 24, this.colors.cream);
+        this.drawRect(x + 6, y + 32, 10, 8, this.colors.cream);
+
+        // Screwdriver
+        this.drawRect(x + 22, y + 8, 4, 20, this.colors.creamDark);
+        this.drawRect(x + 20, y + 28, 8, 12, this.colors.pink);
+
+        // Hammer
+        this.drawRect(x + 36, y + 10, 14, 8, this.colors.bg3);
+        this.drawRect(x + 40, y + 18, 6, 20, this.colors.creamDark);
+
+        // Pliers
+        this.drawRect(x + 12, y + 50, 8, 20, this.colors.cyan);
+        this.drawRect(x + 10, y + 48, 12, 6, this.colors.cyanDark);
+    }
+
+    /**
+     * Draw workbench
+     */
+    drawWorkbench(x, y) {
+        // Bench top
+        this.drawRect(x, y, 90, 12, this.colors.creamDark);
+        this.drawRect(x, y, 90, 4, this.colors.cream);
+
+        // Legs
+        this.drawRect(x + 4, y + 12, 8, 30, this.colors.bg3);
+        this.drawRect(x + 78, y + 12, 8, 30, this.colors.bg3);
+
+        // Items on bench
+        this.drawRect(x + 20, y - 8, 16, 8, this.colors.cyan); // Toolbox
+        this.drawRect(x + 50, y - 6, 12, 6, this.colors.pink); // Part
+        this.drawRect(x + 70, y - 10, 8, 10, this.colors.gatoGreen); // Can
     }
 
     /**
@@ -216,282 +353,589 @@ class Renderer {
      * @param {Car} car - Current car
      */
     drawCurrentCar(car) {
-        const ctx = this.bufferCtx;
-        const x = 60;
-        const y = 150;
-        const width = 100;
-        const height = 50;
+        // Position car on the lift area (centered on the lift pits in background)
+        const x = 80;
+        const y = 130;
+        const carWidth = 140;
+        const carHeight = 140;
 
-        // Car body
-        ctx.fillStyle = car.color;
-        ctx.fillRect(x, y, width, height);
+        // Check if car just transitioned from damaged to repaired (crossed 50%)
+        const isDamaged = car.getProgressPercent() < 0.5;
+        const carChanged = this.lastCarId !== car.id;
+        const stateChanged = !carChanged && this.lastCarWasDamaged && !isDamaged;
+
+        if (stateChanged) {
+            // Trigger transition effect
+            this.transitionEffect.active = true;
+            this.transitionEffect.startTime = this.time;
+            this.transitionEffect.x = x;
+            this.transitionEffect.y = y;
+            this.transitionEffect.width = carWidth;
+            this.transitionEffect.height = carHeight;
+        }
+
+        // Update tracking
+        this.lastCarId = car.id;
+        this.lastCarWasDamaged = isDamaged;
+
+        // Try to draw car sprite
+        const spriteKey = car.getCurrentSprite();
+        const sprite = spriteKey ? Assets.get(spriteKey) : null;
+
+        if (sprite) {
+            // Draw car sprite centered on lift
+            this.bufferCtx.drawImage(
+                sprite,
+                x, y,
+                carWidth, carHeight
+            );
+        } else {
+            // Fallback to procedural car drawing
+            this.drawProceduralCar(car, x + 20, y + 40);
+        }
+
+        // Draw transition effect if active
+        if (this.transitionEffect.active) {
+            this.drawCarTransitionEffect();
+        }
+
+        // Progress bar above car
+        this.drawProgressBar(x + 10, y - 25, carWidth - 20, 14, car.getProgressPercent());
+
+        // Rarity badge
+        this.drawRarityBadge(x + carWidth - 20, y + 10, car.rarity);
+
+        // Sparks if being repaired (animated) - only on damaged cars
+        if (car.getProgressPercent() > 0 && car.getProgressPercent() < 0.5) {
+            this.drawRepairSparks(x + carWidth / 2, y + carHeight / 2);
+        }
+    }
+
+    /**
+     * Draw procedural car (fallback if sprites unavailable)
+     * @param {Car} car - Car to draw
+     * @param {number} x - X position
+     * @param {number} y - Y position
+     */
+    drawProceduralCar(car, x, y) {
+        // Car shadow
+        this.drawRect(x + 5, y + 50, 95, 8, this.colors.bg1);
+
+        // Car body (main rectangle)
+        this.drawRect(x, y + 10, 100, 40, car.color);
 
         // Car roof
-        ctx.fillRect(x + 20, y - 25, 60, 30);
+        this.drawRect(x + 20, y - 10, 60, 24, car.color);
+
+        // Roof highlight
+        this.drawRect(x + 22, y - 8, 56, 4, this.colors.white);
 
         // Windows
-        ctx.fillStyle = this.colors.cyan;
-        ctx.globalAlpha = 0.5;
-        ctx.fillRect(x + 25, y - 20, 20, 20);
-        ctx.fillRect(x + 50, y - 20, 25, 20);
-        ctx.globalAlpha = 1;
+        this.drawRect(x + 24, y - 6, 24, 18, this.colors.cyan);
+        this.drawRect(x + 52, y - 6, 26, 18, this.colors.cyan);
+
+        // Window glare
+        this.drawRect(x + 26, y - 4, 8, 8, this.colors.cyanDark);
+        this.drawRect(x + 54, y - 4, 8, 8, this.colors.cyanDark);
+
+        // Window frames
+        this.drawRect(x + 48, y - 6, 4, 18, car.color);
+
+        // Headlights
+        this.drawRect(x - 2, y + 16, 6, 10, this.colors.cream);
+        this.drawRect(x - 2, y + 34, 6, 8, this.colors.pink);
+
+        // Taillights
+        this.drawRect(x + 96, y + 18, 6, 8, this.colors.pink);
+        this.drawRect(x + 96, y + 32, 6, 8, this.colors.pinkDark);
 
         // Wheels
-        ctx.fillStyle = '#1a1a2e';
-        ctx.beginPath();
-        ctx.arc(x + 25, y + height, 12, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(x + width - 25, y + height, 12, 0, Math.PI * 2);
-        ctx.fill();
+        this.drawWheel(x + 22, y + 48);
+        this.drawWheel(x + 78, y + 48);
 
-        // Hubcaps
-        ctx.fillStyle = this.colors.cream;
-        ctx.beginPath();
-        ctx.arc(x + 25, y + height, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(x + width - 25, y + height, 5, 0, Math.PI * 2);
-        ctx.fill();
+        // Grill
+        this.drawRect(x + 2, y + 26, 8, 16, this.colors.bg0);
+        for (let gy = y + 28; gy < y + 40; gy += 4) {
+            this.drawRect(x + 4, gy, 4, 2, this.colors.bg3);
+        }
 
-        // Repair progress bar above car
-        const barWidth = width;
-        const barHeight = 8;
-        const barX = x;
-        const barY = y - 45;
-        const progress = car.getProgressPercent();
+        // Door lines
+        this.drawRect(x + 35, y + 12, 2, 36, this.shadeColor(car.color, -20));
+        this.drawRect(x + 65, y + 12, 2, 36, this.shadeColor(car.color, -20));
 
+        // Door handles
+        this.drawRect(x + 40, y + 28, 8, 4, this.colors.cream);
+        this.drawRect(x + 70, y + 28, 8, 4, this.colors.cream);
+    }
+
+    /**
+     * Draw a wheel
+     */
+    drawWheel(x, y) {
+        // Tire
+        this.drawRect(x - 10, y - 10, 20, 20, this.colors.black);
+
+        // Inner tire
+        this.drawRect(x - 8, y - 8, 16, 16, '#1a1a2e');
+
+        // Hubcap
+        this.drawRect(x - 5, y - 5, 10, 10, this.colors.bg3);
+
+        // Hub center
+        this.drawRect(x - 2, y - 2, 4, 4, this.colors.cream);
+    }
+
+    /**
+     * Draw progress bar
+     */
+    drawProgressBar(x, y, width, height, progress) {
         // Background
-        ctx.fillStyle = this.colors.gate;
-        ctx.fillRect(barX, barY, barWidth, barHeight);
-
-        // Progress fill
-        ctx.fillStyle = this.colors.gatoGreen;
-        ctx.fillRect(barX, barY, barWidth * progress, barHeight);
+        this.drawRect(x, y, width, height, this.colors.bg0);
 
         // Border
-        ctx.strokeStyle = this.colors.gatoGreenDark;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(barX, barY, barWidth, barHeight);
+        this.drawRectOutline(x, y, width, height, this.colors.gatoGreenDark, 2);
 
-        // Rarity indicator
-        const rarityColors = {
-            common: this.colors.cream,
-            uncommon: this.colors.gatoGreen,
-            rare: this.colors.cyan,
-            legendary: '#a855f7'
+        // Fill
+        const fillWidth = Math.floor((width - 4) * progress);
+        if (fillWidth > 0) {
+            this.drawRect(x + 2, y + 2, fillWidth, height - 4, this.colors.gatoGreen);
+
+            // Highlight on fill
+            this.drawRect(x + 2, y + 2, fillWidth, 2, this.colors.gatoGreenLight);
+        }
+
+        // Percentage text
+        const percent = Math.floor(progress * 100);
+        this.drawText(`${percent}%`, x + width / 2 - 12, y + height - 3, this.colors.cream, 6);
+    }
+
+    /**
+     * Draw rarity badge
+     */
+    drawRarityBadge(x, y, rarity) {
+        const rarityConfig = {
+            common: { color: this.colors.bg3, text: 'C' },
+            uncommon: { color: this.colors.gatoGreen, text: 'U' },
+            rare: { color: this.colors.cyan, text: 'R' },
+            legendary: { color: this.colors.purple, text: 'L' }
         };
-        ctx.fillStyle = rarityColors[car.rarity] || this.colors.cream;
-        ctx.fillRect(x + width - 10, y, 10, 10);
+
+        const config = rarityConfig[rarity] || rarityConfig.common;
+
+        this.drawRect(x, y, 14, 14, config.color);
+        this.drawRectOutline(x, y, 14, 14, this.colors.white, 1);
+        this.drawText(config.text, x + 4, y + 11, this.colors.white, 8);
+    }
+
+    /**
+     * Draw repair sparks
+     */
+    drawRepairSparks(x, y) {
+        const sparkTime = (this.time / 100) % 10;
+
+        for (let i = 0; i < 3; i++) {
+            const angle = (sparkTime + i * 3) * 0.5;
+            const dist = 10 + Math.sin(this.time / 50 + i) * 5;
+            const sx = x + Math.cos(angle) * dist;
+            const sy = y + Math.sin(angle) * dist - 10;
+
+            if ((Math.floor(this.time / 100) + i) % 2 === 0) {
+                this.drawRect(sx, sy, 3, 3, this.colors.cream);
+            }
+        }
+    }
+
+    /**
+     * Draw car transition effect (flash + sparkles when car is repaired)
+     */
+    drawCarTransitionEffect() {
+        const effect = this.transitionEffect;
+        const elapsed = this.time - effect.startTime;
+        const progress = elapsed / effect.duration;
+
+        if (progress >= 1) {
+            effect.active = false;
+            return;
+        }
+
+        const ctx = this.bufferCtx;
+        const centerX = effect.x + effect.width / 2;
+        const centerY = effect.y + effect.height / 2;
+
+        // Phase 1: White flash (0-30%)
+        if (progress < 0.3) {
+            const flashProgress = progress / 0.3;
+            const flashAlpha = Math.sin(flashProgress * Math.PI) * 0.6;
+
+            ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
+            ctx.fillRect(effect.x, effect.y, effect.width, effect.height);
+        }
+
+        // Phase 2: Expanding ring (10-60%)
+        if (progress > 0.1 && progress < 0.6) {
+            const ringProgress = (progress - 0.1) / 0.5;
+            const ringRadius = ringProgress * 80;
+            const ringAlpha = (1 - ringProgress) * 0.8;
+
+            ctx.strokeStyle = `rgba(74, 222, 128, ${ringAlpha})`; // gatoGreen
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // Phase 3: Sparkles burst outward (20-100%)
+        if (progress > 0.2) {
+            const sparkProgress = (progress - 0.2) / 0.8;
+            const numSparkles = 8;
+
+            for (let i = 0; i < numSparkles; i++) {
+                const angle = (i / numSparkles) * Math.PI * 2;
+                const dist = sparkProgress * 70;
+                const sparkX = centerX + Math.cos(angle) * dist;
+                const sparkY = centerY + Math.sin(angle) * dist;
+                const sparkAlpha = (1 - sparkProgress) * 1;
+                const sparkSize = (1 - sparkProgress) * 6 + 2;
+
+                // Draw sparkle (small cross/star shape)
+                ctx.fillStyle = `rgba(254, 243, 199, ${sparkAlpha})`; // cream color
+                ctx.fillRect(sparkX - sparkSize / 2, sparkY - 1, sparkSize, 2);
+                ctx.fillRect(sparkX - 1, sparkY - sparkSize / 2, 2, sparkSize);
+            }
+        }
+
+        // Phase 4: "FIXED!" text pop (30-90%)
+        if (progress > 0.3 && progress < 0.9) {
+            const textProgress = (progress - 0.3) / 0.6;
+            const textAlpha = textProgress < 0.2 ? textProgress / 0.2 : (textProgress > 0.8 ? (1 - textProgress) / 0.2 : 1);
+            const textScale = 1 + Math.sin(textProgress * Math.PI) * 0.2;
+            const textY = effect.y - 10 - textProgress * 15;
+
+            ctx.save();
+            ctx.globalAlpha = textAlpha;
+            ctx.font = `${Math.floor(10 * textScale)}px "Press Start 2P", monospace`;
+            ctx.fillStyle = this.colors.gatoGreen;
+            ctx.textAlign = 'center';
+            ctx.fillText('FIXED!', centerX, textY);
+            ctx.restore();
+        }
     }
 
     /**
      * Draw empty repair bay
      */
     drawEmptyBay() {
-        const ctx = this.bufferCtx;
-        const x = 60;
-        const y = 150;
+        // Position to match car lift area
+        const x = 80;
+        const y = 130;
+        const width = 140;
+        const height = 100;
 
-        // Dotted outline where car would be
-        ctx.strokeStyle = this.colors.gateFrame;
-        ctx.setLineDash([5, 5]);
+        // Dashed outline
+        const ctx = this.bufferCtx;
+        ctx.strokeStyle = this.colors.gatoGreen;
+        ctx.setLineDash([8, 8]);
         ctx.lineWidth = 2;
-        ctx.strokeRect(x, y - 25, 100, 75);
+        ctx.strokeRect(x + 10, y + 20, width - 20, height);
         ctx.setLineDash([]);
 
-        // "WAITING" text
-        ctx.fillStyle = this.colors.gateFrame;
-        ctx.font = '8px "Press Start 2P", monospace';
-        ctx.fillText('WAITING...', x + 15, y + 25);
+        // Waiting text
+        const pulse = Math.sin(this.time / 500) * 0.3 + 0.7;
+        ctx.globalAlpha = pulse;
+        this.drawText('WAITING...', x + 35, y + 75, this.colors.gatoGreen, 8);
+        ctx.globalAlpha = 1;
     }
 
     /**
      * Draw the main character Gato-san
-     * @param {GameState} state - Game state
-     * @param {number} interpolation - Animation interpolation
      */
     drawGatoSan(state, interpolation) {
-        const ctx = this.bufferCtx;
-        const x = 180;
-        const y = 140;
+        const x = 185;
+        const y = 155;
 
-        // Update animation
-        this.gatoAnimTimer += 16; // Approximate frame time
-        if (this.gatoAnimTimer > 500) {
+        // Animation
+        this.gatoAnimTimer += 16;
+        if (this.gatoAnimTimer > 400) {
             this.gatoFrame = (this.gatoFrame + 1) % 2;
             this.gatoAnimTimer = 0;
         }
 
-        // Simple placeholder character
-        // Body (maid dress - navy blue)
-        ctx.fillStyle = this.colors.navy;
-        ctx.fillRect(x - 15, y, 30, 45);
+        const bounce = this.gatoFrame === 1 ? -2 : 0;
 
-        // Apron (cream)
-        ctx.fillStyle = this.colors.cream;
-        ctx.fillRect(x - 10, y + 5, 20, 35);
+        // Shadow
+        this.drawRect(x - 14, y + 44, 28, 6, this.colors.bg1);
 
-        // Head
-        ctx.fillStyle = this.colors.cream;
-        ctx.fillRect(x - 12, y - 25, 24, 25);
+        // Tail (animated)
+        const tailWave = Math.sin(this.time / 150) * 8;
+        this.drawTail(x + 12, y + 25, tailWave);
 
-        // Hair (green)
-        ctx.fillStyle = this.colors.gatoGreen;
-        ctx.fillRect(x - 14, y - 30, 28, 15);
+        // Body (maid dress)
+        this.drawRect(x - 12, y + bounce, 24, 44, this.colors.navy);
 
-        // Cat ears
-        ctx.beginPath();
-        ctx.moveTo(x - 12, y - 25);
-        ctx.lineTo(x - 8, y - 40);
-        ctx.lineTo(x - 4, y - 25);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(x + 4, y - 25);
-        ctx.lineTo(x + 8, y - 40);
-        ctx.lineTo(x + 12, y - 25);
-        ctx.fill();
+        // Dress details
+        this.drawRect(x - 10, y + 38 + bounce, 20, 6, this.colors.navyDark);
 
-        // Inner ears
-        ctx.fillStyle = this.colors.pink;
-        ctx.beginPath();
-        ctx.moveTo(x - 10, y - 27);
-        ctx.lineTo(x - 8, y - 35);
-        ctx.lineTo(x - 6, y - 27);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(x + 6, y - 27);
-        ctx.lineTo(x + 8, y - 35);
-        ctx.lineTo(x + 10, y - 27);
-        ctx.fill();
+        // Apron
+        this.drawRect(x - 8, y + 4 + bounce, 16, 32, this.colors.cream);
+        this.drawRect(x - 6, y + 6 + bounce, 12, 2, this.colors.creamDark);
 
-        // Eyes (simple dots)
-        ctx.fillStyle = '#1a1a2e';
-        ctx.fillRect(x - 6, y - 18, 4, 4);
-        ctx.fillRect(x + 2, y - 18, 4, 4);
+        // Apron bow (back)
+        this.drawRect(x + 10, y + 12 + bounce, 8, 8, this.colors.cream);
+        this.drawRect(x + 14, y + 8 + bounce, 6, 4, this.colors.cream);
+        this.drawRect(x + 14, y + 20 + bounce, 6, 4, this.colors.cream);
 
-        // Mouth (cute cat smile)
-        ctx.strokeStyle = '#1a1a2e';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x - 3, y - 10);
-        ctx.lineTo(x, y - 8);
-        ctx.lineTo(x + 3, y - 10);
-        ctx.stroke();
+        // Arms
+        this.drawRect(x - 16, y + 4 + bounce, 6, 20, this.colors.navy);
+        this.drawRect(x + 10, y + 4 + bounce, 6, 20, this.colors.navy);
 
-        // Tail
-        const tailWave = Math.sin(Date.now() / 200) * 5;
-        ctx.fillStyle = this.colors.gatoGreen;
-        ctx.beginPath();
-        ctx.moveTo(x + 15, y + 30);
-        ctx.quadraticCurveTo(x + 30 + tailWave, y + 20, x + 35 + tailWave, y + 35);
-        ctx.quadraticCurveTo(x + 30 + tailWave, y + 25, x + 15, y + 35);
-        ctx.fill();
+        // Hands
+        this.drawRect(x - 16, y + 22 + bounce, 6, 6, this.colors.cream);
+        this.drawRect(x + 10, y + 22 + bounce, 6, 6, this.colors.cream);
 
-        // Tool in hand (if repairing)
+        // Tool in hand if working
         if (state.currentCar) {
-            ctx.fillStyle = this.colors.cream;
-            ctx.fillRect(x - 25, y + 10, 15, 4);
-            ctx.fillRect(x - 28, y + 5, 6, 14);
+            this.drawRect(x - 24, y + 16 + bounce, 12, 4, this.colors.creamDark);
+            this.drawRect(x - 26, y + 12 + bounce, 6, 12, this.colors.bg3);
         }
 
-        // Maid headpiece
-        ctx.fillStyle = this.colors.cream;
-        ctx.fillRect(x - 10, y - 32, 20, 5);
+        // Head
+        this.drawRect(x - 10, y - 22 + bounce, 20, 22, this.colors.cream);
+
+        // Hair (green)
+        this.drawRect(x - 12, y - 28 + bounce, 24, 14, this.colors.gatoGreen);
+        this.drawRect(x - 10, y - 30 + bounce, 20, 4, this.colors.gatoGreenDark);
+
+        // Bangs
+        this.drawRect(x - 8, y - 16 + bounce, 6, 6, this.colors.gatoGreen);
+        this.drawRect(x + 2, y - 16 + bounce, 6, 6, this.colors.gatoGreen);
+
+        // Cat ears
+        this.drawEar(x - 10, y - 38 + bounce, false);
+        this.drawEar(x + 4, y - 38 + bounce, true);
+
+        // Maid headband
+        this.drawRect(x - 8, y - 30 + bounce, 16, 4, this.colors.cream);
+        // Headband ruffle
+        this.drawRect(x - 6, y - 34 + bounce, 12, 4, this.colors.cream);
+
+        // Eyes
+        const blinkFrame = Math.floor(this.time / 2000) % 20;
+        if (blinkFrame === 0) {
+            // Blinking
+            this.drawRect(x - 6, y - 14 + bounce, 5, 2, this.colors.black);
+            this.drawRect(x + 1, y - 14 + bounce, 5, 2, this.colors.black);
+        } else {
+            // Open eyes
+            this.drawRect(x - 6, y - 16 + bounce, 5, 5, this.colors.black);
+            this.drawRect(x + 1, y - 16 + bounce, 5, 5, this.colors.black);
+            // Eye highlights
+            this.drawRect(x - 5, y - 15 + bounce, 2, 2, this.colors.white);
+            this.drawRect(x + 2, y - 15 + bounce, 2, 2, this.colors.white);
+        }
+
+        // Blush
+        this.drawRect(x - 8, y - 10 + bounce, 4, 2, this.colors.pink);
+        this.drawRect(x + 4, y - 10 + bounce, 4, 2, this.colors.pink);
+
+        // Mouth (cat smile)
+        this.drawRect(x - 2, y - 6 + bounce, 1, 2, this.colors.black);
+        this.drawRect(x + 1, y - 6 + bounce, 1, 2, this.colors.black);
+        this.drawRect(x - 1, y - 4 + bounce, 2, 1, this.colors.black);
+
+        // Collar bow
+        this.drawRect(x - 4, y - 2 + bounce, 8, 6, this.colors.gatoGreen);
+        this.drawRect(x - 2, y + bounce, 4, 4, this.colors.gatoGreenDark);
+    }
+
+    /**
+     * Draw cat ear
+     */
+    drawEar(x, y, flip) {
+        const ctx = this.bufferCtx;
+        ctx.fillStyle = this.colors.gatoGreen;
+
+        ctx.beginPath();
+        if (flip) {
+            ctx.moveTo(x, y + 12);
+            ctx.lineTo(x + 3, y);
+            ctx.lineTo(x + 8, y + 12);
+        } else {
+            ctx.moveTo(x, y + 12);
+            ctx.lineTo(x + 5, y);
+            ctx.lineTo(x + 8, y + 12);
+        }
+        ctx.fill();
+
+        // Inner ear
+        ctx.fillStyle = this.colors.pink;
+        ctx.beginPath();
+        if (flip) {
+            ctx.moveTo(x + 2, y + 10);
+            ctx.lineTo(x + 4, y + 4);
+            ctx.lineTo(x + 6, y + 10);
+        } else {
+            ctx.moveTo(x + 2, y + 10);
+            ctx.lineTo(x + 4, y + 4);
+            ctx.lineTo(x + 6, y + 10);
+        }
+        ctx.fill();
+    }
+
+    /**
+     * Draw tail
+     */
+    drawTail(x, y, wave) {
+        const ctx = this.bufferCtx;
+        ctx.fillStyle = this.colors.gatoGreen;
+
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x + 15 + wave, y - 10, x + 25 + wave, y + 5);
+        ctx.quadraticCurveTo(x + 20 + wave, y + 10, x + 15 + wave, y + 5);
+        ctx.quadraticCurveTo(x + 10 + wave, y, x, y + 6);
+        ctx.fill();
     }
 
     /**
      * Draw hired workers
-     * @param {Array} workers - Array of Worker instances
      */
     drawWorkers(workers) {
         if (workers.length === 0) return;
 
-        const ctx = this.bufferCtx;
-        const startX = 220;
-        const startY = 200;
-        const spacing = 25;
+        const startX = 230;
+        const startY = 195;
+        const spacing = 22;
 
-        // Only show first 4 workers visually
-        const visibleWorkers = workers.slice(0, 4);
+        // Only show first 6 workers visually
+        const visibleWorkers = workers.slice(0, 6);
 
         visibleWorkers.forEach((worker, index) => {
-            const x = startX + (index % 2) * spacing;
-            const y = startY + Math.floor(index / 2) * 30;
+            const col = index % 3;
+            const row = Math.floor(index / 3);
+            const x = startX + col * spacing;
+            const y = startY + row * 35;
 
-            // Mini worker sprite
-            // Body
-            ctx.fillStyle = worker.color;
-            ctx.fillRect(x - 6, y, 12, 18);
-
-            // Head
-            ctx.fillStyle = this.colors.cream;
-            ctx.fillRect(x - 5, y - 10, 10, 10);
-
-            // Ears
-            ctx.fillStyle = worker.color;
-            ctx.beginPath();
-            ctx.moveTo(x - 5, y - 8);
-            ctx.lineTo(x - 3, y - 15);
-            ctx.lineTo(x - 1, y - 8);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(x + 1, y - 8);
-            ctx.lineTo(x + 3, y - 15);
-            ctx.lineTo(x + 5, y - 8);
-            ctx.fill();
+            this.drawMiniWorker(x, y, worker.color);
         });
 
-        // If more workers, show count
-        if (workers.length > 4) {
-            ctx.fillStyle = this.colors.cream;
-            ctx.font = '6px "Press Start 2P", monospace';
-            ctx.fillText(`+${workers.length - 4}`, startX + 50, startY + 20);
+        // Worker count if more
+        if (workers.length > 6) {
+            this.drawText(`+${workers.length - 6}`, startX + 70, startY + 25, this.colors.cream, 8);
         }
     }
 
     /**
-     * Draw car queue in background
-     * @param {Array} carQueue - Array of cars in queue
+     * Draw mini worker sprite
      */
-    drawCarQueue(carQueue) {
-        const ctx = this.bufferCtx;
-        const startX = 180;
-        const y = 250;
-        const spacing = 25;
+    drawMiniWorker(x, y, color) {
+        // Shadow
+        this.drawRect(x - 4, y + 18, 10, 3, this.colors.bg1);
 
-        carQueue.forEach((car, index) => {
-            const x = startX + index * spacing;
+        // Body
+        this.drawRect(x - 4, y, 10, 16, color);
 
-            // Mini car
-            ctx.fillStyle = car.color;
-            ctx.fillRect(x, y, 20, 12);
-            ctx.fillRect(x + 4, y - 6, 12, 8);
+        // Apron
+        this.drawRect(x - 2, y + 2, 6, 10, this.colors.cream);
 
-            // Wheels
-            ctx.fillStyle = '#1a1a2e';
-            ctx.beginPath();
-            ctx.arc(x + 5, y + 12, 3, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(x + 15, y + 12, 3, 0, Math.PI * 2);
-            ctx.fill();
-        });
+        // Head
+        this.drawRect(x - 3, y - 8, 8, 8, this.colors.cream);
+
+        // Hair
+        this.drawRect(x - 4, y - 10, 10, 4, color);
+
+        // Ears
+        this.drawRect(x - 4, y - 13, 3, 4, color);
+        this.drawRect(x + 3, y - 13, 3, 4, color);
+
+        // Eyes
+        this.drawRect(x - 2, y - 6, 2, 2, this.colors.black);
+        this.drawRect(x + 2, y - 6, 2, 2, this.colors.black);
     }
 
     /**
-     * Get canvas element for click handling
-     * @returns {HTMLCanvasElement} Canvas element
+     * Draw car queue in background
+     */
+    drawCarQueue(carQueue) {
+        // Queue label
+        this.drawText('QUEUE', 10, this.internalHeight - 8, this.colors.gatoGreen, 6);
+
+        const startX = 50;
+        const y = this.internalHeight - 45;
+        const spacing = 55;
+
+        carQueue.forEach((car, index) => {
+            const x = startX + index * spacing;
+            this.drawMiniCarSprite(x, y, car);
+        });
+
+        // Empty slots
+        for (let i = carQueue.length; i < 5; i++) {
+            const x = startX + i * spacing;
+            this.drawRect(x, y, 48, 32, 'rgba(0,0,0,0.3)');
+            this.drawRectOutline(x, y, 48, 32, this.colors.bg3, 1);
+        }
+    }
+
+    /**
+     * Draw mini car sprite for queue
+     */
+    drawMiniCarSprite(x, y, car) {
+        const spriteKey = car.spriteDamaged; // Always show damaged in queue
+        const sprite = spriteKey ? Assets.get(spriteKey) : null;
+
+        if (sprite) {
+            // Draw small version of car sprite
+            this.bufferCtx.drawImage(sprite, x, y, 48, 32);
+        } else {
+            // Fallback to procedural mini car
+            this.drawMiniCar(x + 13, y + 5, car.color);
+        }
+    }
+
+    /**
+     * Draw mini car for queue (procedural fallback)
+     */
+    drawMiniCar(x, y, color) {
+        // Body
+        this.drawRect(x, y, 22, 12, color);
+
+        // Roof
+        this.drawRect(x + 4, y - 6, 14, 8, color);
+
+        // Windows
+        this.drawRect(x + 6, y - 4, 10, 5, this.colors.cyan);
+
+        // Wheels
+        this.drawRect(x + 2, y + 10, 6, 6, this.colors.black);
+        this.drawRect(x + 14, y + 10, 6, 6, this.colors.black);
+    }
+
+    /**
+     * Shade a hex color
+     */
+    shadeColor(color, percent) {
+        const num = parseInt(color.replace('#', ''), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = (num >> 16) + amt;
+        const G = (num >> 8 & 0x00FF) + amt;
+        const B = (num & 0x0000FF) + amt;
+        return '#' + (
+            0x1000000 +
+            (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+            (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+            (B < 255 ? B < 1 ? 0 : B : 255)
+        ).toString(16).slice(1);
+    }
+
+    /**
+     * Get canvas element
      */
     getCanvas() {
         return this.canvas;
     }
 
     /**
-     * Convert screen coordinates to game coordinates
-     * @param {number} screenX - Screen X
-     * @param {number} screenY - Screen Y
-     * @returns {Object} Game coordinates {x, y}
+     * Convert screen to game coordinates
      */
     screenToGame(screenX, screenY) {
         const rect = this.canvas.getBoundingClientRect();

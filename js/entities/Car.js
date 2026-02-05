@@ -14,9 +14,25 @@ class Car {
         this.color = carDef.color;
         this.rarity = carDef.rarity;
 
+        // Sprite keys for rendering
+        this.spriteDamaged = carDef.spriteDamaged || null;
+        this.spriteClean = carDef.spriteClean || null;
+
         // Current repair state
         this.repairProgress = 0;
         this.createdAt = Date.now();
+    }
+
+    /**
+     * Get the appropriate sprite key based on repair progress
+     * @returns {string|null} Sprite key to use
+     */
+    getCurrentSprite() {
+        // Show clean sprite once repair is >= 50% complete
+        if (this.getProgressPercent() >= 0.5) {
+            return this.spriteClean;
+        }
+        return this.spriteDamaged;
     }
 
     /**

@@ -20,10 +20,19 @@ class SaveManager {
      */
     save() {
         try {
+            const serializedState = this.state.serialize();
+            console.log('Saving state:', {
+                currency: serializedState.currency,
+                upgrades: Object.keys(serializedState.upgrades).length,
+                workers: serializedState.workers.length,
+                currentCar: serializedState.currentCar?.id,
+                carQueue: serializedState.carQueue.length
+            });
+
             const saveData = {
                 version: this.version,
                 timestamp: Date.now(),
-                state: this.state.serialize()
+                state: serializedState
             };
 
             const saveString = JSON.stringify(saveData);
@@ -34,6 +43,7 @@ class SaveManager {
             return true;
         } catch (error) {
             console.error('Failed to save game:', error);
+            console.error('Error stack:', error.stack);
             return false;
         }
     }
@@ -50,7 +60,15 @@ class SaveManager {
                 return null;
             }
 
+            console.log('Loading save data...');
             const saveData = JSON.parse(saveString);
+            console.log('Parsed save data:', saveData);
+
+            // Validate save data structure
+            if (!saveData.state) {
+                console.error('Invalid save data: missing state object');
+                return null;
+            }
 
             // Version migration if needed
             if (saveData.version < this.version) {
@@ -58,7 +76,15 @@ class SaveManager {
             }
 
             // Load state
+            console.log('Deserializing state...');
             this.state.deserialize(saveData.state);
+            console.log('State after deserialize:', {
+                currency: this.state.currency,
+                upgrades: this.state.upgrades,
+                workers: this.state.workers.length,
+                currentCar: this.state.currentCar?.name,
+                carQueue: this.state.carQueue.length
+            });
 
             // Calculate offline progress
             const offlineProgress = this.calculateOfflineProgress(saveData.timestamp);
@@ -72,6 +98,7 @@ class SaveManager {
             return offlineProgress;
         } catch (error) {
             console.error('Failed to load game:', error);
+            console.error('Error stack:', error.stack);
             return null;
         }
     }

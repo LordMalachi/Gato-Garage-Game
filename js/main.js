@@ -13,13 +13,18 @@ let game = null;
 /**
  * Initialize the game when DOM is ready
  */
-function initGame() {
+async function initGame() {
     console.log('=================================');
     console.log('  GATO GARAGE - Idle Mechanic');
     console.log('  Starring Cheese the Maid');
     console.log('=================================');
 
     try {
+        // Load assets first
+        console.log('Loading assets...');
+        await Assets.loadAll();
+        console.log('Assets loaded!');
+
         // Create and initialize game
         game = new Game();
         game.init();

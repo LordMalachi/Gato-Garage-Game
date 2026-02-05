@@ -1,6 +1,10 @@
 /**
  * Car definitions for vehicles that come into the garage
  * Each car type has different repair requirements and values
+ *
+ * Sprite mappings:
+ * - Damaged sprites: car001 (smoking sedan), car006 (smoking bug)
+ * - Clean sprites: car002 (green sports), car003 (dark sedan), car004 (orange pickup), car005 (green tuner)
  */
 const CarData = {
     hatchback: {
@@ -10,7 +14,9 @@ const CarData = {
         baseValue: 25,   // Payment on completion
         color: '#94a3b8', // Gray
         rarity: 'common',
-        weight: 30 // Spawn weight
+        weight: 30, // Spawn weight
+        spriteDamaged: 'car006', // Small damaged car
+        spriteClean: 'car002'    // Clean sports car style
     },
 
     sedan: {
@@ -20,7 +26,9 @@ const CarData = {
         baseValue: 50,
         color: '#60a5fa', // Blue
         rarity: 'common',
-        weight: 25
+        weight: 25,
+        spriteDamaged: 'car001', // Smoking sedan
+        spriteClean: 'car003'    // Dark sedan
     },
 
     suv: {
@@ -30,7 +38,9 @@ const CarData = {
         baseValue: 120,
         color: '#34d399', // Teal
         rarity: 'common',
-        weight: 20
+        weight: 20,
+        spriteDamaged: 'car001',
+        spriteClean: 'car003'
     },
 
     pickup: {
@@ -40,7 +50,9 @@ const CarData = {
         baseValue: 180,
         color: '#fb923c', // Orange
         rarity: 'uncommon',
-        weight: 12
+        weight: 12,
+        spriteDamaged: 'car001',
+        spriteClean: 'car004'    // Orange pickup
     },
 
     sportsCar: {
@@ -50,7 +62,9 @@ const CarData = {
         baseValue: 350,
         color: '#f87171', // Red
         rarity: 'uncommon',
-        weight: 8
+        weight: 8,
+        spriteDamaged: 'car001',
+        spriteClean: 'car005'    // Green tuner/sports
     },
 
     vintage: {
@@ -60,7 +74,9 @@ const CarData = {
         baseValue: 600,
         color: '#fbbf24', // Gold
         rarity: 'rare',
-        weight: 4
+        weight: 4,
+        spriteDamaged: 'car006', // Bug style for vintage
+        spriteClean: 'car002'
     },
 
     cyberCar: {
@@ -70,7 +86,9 @@ const CarData = {
         baseValue: 1200,
         color: '#22d3d3', // Cyan
         rarity: 'rare',
-        weight: 2
+        weight: 2,
+        spriteDamaged: 'car001',
+        spriteClean: 'car005'
     },
 
     hypercar: {
@@ -80,7 +98,9 @@ const CarData = {
         baseValue: 2500,
         color: '#a855f7', // Purple
         rarity: 'legendary',
-        weight: 1
+        weight: 1,
+        spriteDamaged: 'car001',
+        spriteClean: 'car005'
     }
 };
 

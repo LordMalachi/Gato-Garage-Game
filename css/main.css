@@ -430,6 +430,115 @@ html, body {
     }
 }
 
+/* Settings Modal */
+.settings-content {
+    max-width: 400px;
+    text-align: left;
+}
+
+.settings-section {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.settings-section:last-of-type {
+    border-bottom: none;
+}
+
+.settings-section h3 {
+    font-size: 8px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+}
+
+.settings-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings-btn {
+    width: 100%;
+    text-align: center;
+}
+
+.save-status {
+    font-size: 7px;
+    color: var(--text-secondary);
+    padding: 4px 8px;
+    min-height: 20px;
+}
+
+.save-status.has-save {
+    color: var(--gato-green);
+}
+
+.save-status.no-save {
+    color: var(--text-secondary);
+}
+
+.save-data-text {
+    width: 100%;
+    height: 60px;
+    margin-top: 8px;
+    padding: 8px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    color: var(--apron-cream);
+    background-color: var(--bg-primary);
+    border: 2px solid var(--maid-navy);
+    border-radius: 2px;
+    resize: none;
+}
+
+.save-data-text:focus {
+    outline: none;
+    border-color: var(--gato-green);
+}
+
+.danger-zone {
+    border-color: var(--cyber-pink) !important;
+}
+
+.danger-zone h3 {
+    color: var(--cyber-pink) !important;
+}
+
+.danger-btn {
+    background-color: #7f1d1d;
+    border-color: #dc2626;
+    color: #fecaca;
+}
+
+.danger-btn:hover {
+    background-color: #991b1b;
+    border-color: #ef4444;
+    color: #fef2f2;
+}
+
+.modal-footer {
+    margin-top: 16px;
+    text-align: center;
+}
+
+/* Confirm Modal */
+.confirm-content {
+    max-width: 320px;
+}
+
+.confirm-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 16px;
+}
+
+.confirm-buttons .menu-btn {
+    min-width: 80px;
+}
+
 /* Utility classes */
 .hidden {
     display: none !important;

@@ -96,9 +96,65 @@
                 <button id="offline-ok-btn" class="menu-btn">Nyaa~!</button>
             </div>
         </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="modal hidden">
+            <div class="modal-content settings-content">
+                <h2>Settings</h2>
+
+                <div class="settings-section">
+                    <h3>Save Data</h3>
+                    <div class="settings-buttons">
+                        <button id="load-game-btn" class="menu-btn settings-btn">
+                            Load Saved Game
+                        </button>
+                        <div id="save-status" class="save-status"></div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Export / Import</h3>
+                    <div class="settings-buttons">
+                        <button id="export-save-btn" class="menu-btn settings-btn">
+                            Export Save
+                        </button>
+                        <button id="import-save-btn" class="menu-btn settings-btn">
+                            Import Save
+                        </button>
+                    </div>
+                    <textarea id="save-data-text" class="save-data-text" placeholder="Paste save data here to import..."></textarea>
+                </div>
+
+                <div class="settings-section danger-zone">
+                    <h3>Danger Zone</h3>
+                    <div class="settings-buttons">
+                        <button id="clear-save-btn" class="menu-btn danger-btn">
+                            Clear All Saves
+                        </button>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button id="settings-close-btn" class="menu-btn">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirm Modal -->
+        <div id="confirm-modal" class="modal hidden">
+            <div class="modal-content confirm-content">
+                <h2 id="confirm-title">Confirm</h2>
+                <p id="confirm-message">Are you sure?</p>
+                <div class="confirm-buttons">
+                    <button id="confirm-yes-btn" class="menu-btn danger-btn">Yes</button>
+                    <button id="confirm-no-btn" class="menu-btn">No</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Scripts loaded in order -->
+    <script src="js/utils/AssetLoader.js"></script>
     <script src="js/utils/EventBus.js"></script>
     <script src="js/utils/NumberFormatter.js"></script>
 

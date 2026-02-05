@@ -29,34 +29,35 @@ class Game {
             (interp) => this.render(interp)
         );
 
+        // Settings modal state
+        this.settingsModal = null;
+        this.confirmModal = null;
+        this.confirmCallback = null;
+
         // Setup
         this.setupClickHandler();
         this.setupMenuButtons();
+        this.setupSettingsModal();
     }
 
     /**
      * Initialize and start the game
+     * Always starts fresh - use Settings to load saved game
      */
     init() {
         console.log('Initializing Gato Garage...');
 
-        // Try to load saved game
-        const offlineProgress = this.saveManager.load();
-
-        if (offlineProgress) {
-            console.log('Loaded saved game');
-            // State is already loaded, just recalculate
-            this.state.recalculateStats();
-        } else {
-            console.log('Starting new game');
-            // New game - spawn initial car
-            this.carQueueSystem.forceSpawn();
-        }
+        // Always start a new game by default
+        console.log('Starting new game');
+        this.carQueueSystem.forceSpawn();
 
         // Update UI with current state
         this.uiManager.updateAll();
         this.shopUI.renderUpgrades();
         this.shopUI.renderWorkers();
+
+        // Update settings modal save status
+        this.updateSaveStatus();
 
         // Start systems
         this.statsUI.start();
@@ -157,10 +158,289 @@ class Game {
         const settingsBtn = document.getElementById('settings-btn');
         if (settingsBtn) {
             settingsBtn.addEventListener('click', () => {
-                // TODO: Implement settings modal
-                console.log('Settings clicked');
+                this.openSettings();
             });
         }
+    }
+
+    /**
+     * Setup settings modal handlers
+     */
+    setupSettingsModal() {
+        this.settingsModal = document.getElementById('settings-modal');
+        this.confirmModal = document.getElementById('confirm-modal');
+
+        // Close button
+        const closeBtn = document.getElementById('settings-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => this.closeSettings());
+        }
+
+        // Load game button
+        const loadBtn = document.getElementById('load-game-btn');
+        if (loadBtn) {
+            loadBtn.addEventListener('click', () => this.loadSavedGame());
+        }
+
+        // Export save button
+        const exportBtn = document.getElementById('export-save-btn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => this.exportSave());
+        }
+
+        // Import save button
+        const importBtn = document.getElementById('import-save-btn');
+        if (importBtn) {
+            importBtn.addEventListener('click', () => this.importSave());
+        }
+
+        // Clear saves button
+        const clearBtn = document.getElementById('clear-save-btn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                this.showConfirm(
+                    'Clear All Saves?',
+                    'This will permanently delete all saved progress. This cannot be undone!',
+                    () => this.clearAllSaves()
+                );
+            });
+        }
+
+        // Confirm modal buttons
+        const confirmYes = document.getElementById('confirm-yes-btn');
+        const confirmNo = document.getElementById('confirm-no-btn');
+        if (confirmYes) {
+            confirmYes.addEventListener('click', () => {
+                if (this.confirmCallback) {
+                    this.confirmCallback();
+                }
+                this.hideConfirm();
+            });
+        }
+        if (confirmNo) {
+            confirmNo.addEventListener('click', () => this.hideConfirm());
+        }
+
+        // Close modals on background click
+        if (this.settingsModal) {
+            this.settingsModal.addEventListener('click', (e) => {
+                if (e.target === this.settingsModal) {
+                    this.closeSettings();
+                }
+            });
+        }
+        if (this.confirmModal) {
+            this.confirmModal.addEventListener('click', (e) => {
+                if (e.target === this.confirmModal) {
+                    this.hideConfirm();
+                }
+            });
+        }
+    }
+
+    /**
+     * Open settings modal
+     */
+    openSettings() {
+        this.updateSaveStatus();
+        if (this.settingsModal) {
+            this.settingsModal.classList.remove('hidden');
+        }
+    }
+
+    /**
+     * Close settings modal
+     */
+    closeSettings() {
+        if (this.settingsModal) {
+            this.settingsModal.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Update save status display in settings
+     */
+    updateSaveStatus() {
+        const statusEl = document.getElementById('save-status');
+        const loadBtn = document.getElementById('load-game-btn');
+
+        if (statusEl) {
+            if (this.saveManager.hasSave()) {
+                statusEl.textContent = 'Save data found!';
+                statusEl.className = 'save-status has-save';
+                if (loadBtn) loadBtn.disabled = false;
+            } else {
+                statusEl.textContent = 'No saved game found.';
+                statusEl.className = 'save-status no-save';
+                if (loadBtn) loadBtn.disabled = true;
+            }
+        }
+    }
+
+    /**
+     * Load saved game from settings
+     */
+    loadSavedGame() {
+        if (!this.saveManager.hasSave()) {
+            EventBus.emit(GameEvents.NOTIFICATION, { message: 'No save data found!' });
+            return;
+        }
+
+        this.showConfirm(
+            'Load Saved Game?',
+            'This will replace your current progress with the saved game.',
+            () => {
+                console.log('Attempting to load saved game...');
+                const offlineProgress = this.saveManager.load();
+
+                // offlineProgress can be { earnings: 0, time: 0 } which is truthy
+                // We need to check if load actually succeeded
+                if (offlineProgress !== null) {
+                    console.log('Load returned:', offlineProgress);
+
+                    // Recalculate all stats from loaded data
+                    this.state.recalculateStats();
+                    console.log('Stats recalculated:', {
+                        clickPower: this.state.clickPower,
+                        autoRepairRate: this.state.autoRepairRate,
+                        currency: this.state.currency
+                    });
+
+                    // Ensure there's a car to work on
+                    if (!this.state.currentCar && this.state.carQueue.length === 0) {
+                        console.log('No car found, spawning one...');
+                        this.carQueueSystem.forceSpawn();
+                    } else if (!this.state.currentCar && this.state.carQueue.length > 0) {
+                        // Move first car from queue to current
+                        console.log('Moving car from queue to current...');
+                        this.state.currentCar = this.state.carQueue.shift();
+                    }
+
+                    // Update all UI elements
+                    this.uiManager.updateAll();
+                    this.shopUI.renderUpgrades();
+                    this.shopUI.renderWorkers();
+
+                    // Force update current car display
+                    if (this.state.currentCar) {
+                        this.uiManager.updateCurrentCar(this.state.currentCar);
+                        this.uiManager.updateRepairProgress(this.state.currentCar.getProgressPercent());
+                    }
+
+                    // Update queue display
+                    this.uiManager.updateCarQueue(this.state.carQueue);
+
+                    EventBus.emit(GameEvents.NOTIFICATION, { message: 'Game loaded!' });
+                    this.closeSettings();
+
+                    // Show offline earnings if any
+                    if (offlineProgress.earnings > 0) {
+                        EventBus.emit(GameEvents.OFFLINE_EARNINGS, offlineProgress);
+                    }
+                } else {
+                    console.error('Load failed - returned null');
+                    EventBus.emit(GameEvents.NOTIFICATION, { message: 'Failed to load save!' });
+                }
+            }
+        );
+    }
+
+    /**
+     * Export save to textarea
+     */
+    exportSave() {
+        // Save current state first
+        this.saveManager.save();
+
+        const exportData = this.saveManager.exportSave();
+        const textarea = document.getElementById('save-data-text');
+
+        if (textarea && exportData) {
+            textarea.value = exportData;
+            textarea.select();
+            EventBus.emit(GameEvents.NOTIFICATION, { message: 'Save exported! Copy the text.' });
+        } else {
+            EventBus.emit(GameEvents.NOTIFICATION, { message: 'No save to export!' });
+        }
+    }
+
+    /**
+     * Import save from textarea
+     */
+    importSave() {
+        const textarea = document.getElementById('save-data-text');
+        const importData = textarea?.value?.trim();
+
+        if (!importData) {
+            EventBus.emit(GameEvents.NOTIFICATION, { message: 'Paste save data first!' });
+            return;
+        }
+
+        this.showConfirm(
+            'Import Save?',
+            'This will replace your current progress with the imported save.',
+            () => {
+                const success = this.saveManager.importSave(importData);
+
+                if (success) {
+                    this.state.recalculateStats();
+
+                    if (!this.state.currentCar && this.state.carQueue.length === 0) {
+                        this.carQueueSystem.forceSpawn();
+                    }
+
+                    this.uiManager.updateAll();
+                    this.shopUI.renderUpgrades();
+                    this.shopUI.renderWorkers();
+                    this.updateSaveStatus();
+
+                    EventBus.emit(GameEvents.NOTIFICATION, { message: 'Save imported!' });
+                    textarea.value = '';
+                    this.closeSettings();
+                } else {
+                    EventBus.emit(GameEvents.NOTIFICATION, { message: 'Invalid save data!' });
+                }
+            }
+        );
+    }
+
+    /**
+     * Clear all saves
+     */
+    clearAllSaves() {
+        this.saveManager.deleteSave();
+        this.updateSaveStatus();
+        EventBus.emit(GameEvents.NOTIFICATION, { message: 'All saves cleared!' });
+    }
+
+    /**
+     * Show confirmation modal
+     * @param {string} title - Modal title
+     * @param {string} message - Modal message
+     * @param {Function} callback - Function to call on confirm
+     */
+    showConfirm(title, message, callback) {
+        const titleEl = document.getElementById('confirm-title');
+        const messageEl = document.getElementById('confirm-message');
+
+        if (titleEl) titleEl.textContent = title;
+        if (messageEl) messageEl.textContent = message;
+
+        this.confirmCallback = callback;
+
+        if (this.confirmModal) {
+            this.confirmModal.classList.remove('hidden');
+        }
+    }
+
+    /**
+     * Hide confirmation modal
+     */
+    hideConfirm() {
+        if (this.confirmModal) {
+            this.confirmModal.classList.add('hidden');
+        }
+        this.confirmCallback = null;
     }
 
     /**
