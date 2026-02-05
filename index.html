@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gato Garage - Idle Mechanic Game</title>
+
+    <!-- Pixel font -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/pixel-ui.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Main game canvas -->
+        <div id="game-area" class="scanlines">
+            <canvas id="game-canvas"></canvas>
+
+            <!-- Click area overlay for interaction -->
+            <div id="click-area"></div>
+
+            <!-- Floating damage numbers container -->
+            <div id="floating-numbers"></div>
+        </div>
+
+        <!-- UI Sidebar -->
+        <aside id="sidebar">
+            <!-- Stats Panel -->
+            <section id="stats-panel" class="ui-panel">
+                <h1 class="game-title">GATO GARAGE</h1>
+                <div id="currency-display" class="glow-green">
+                    <span class="currency-symbol">$</span>
+                    <span id="currency-value">0</span>
+                </div>
+                <div id="rate-display">
+                    <div class="rate-item">
+                        <span class="rate-label">Click:</span>
+                        <span id="click-power">1</span>
+                    </div>
+                    <div class="rate-item">
+                        <span class="rate-label">Auto:</span>
+                        <span id="auto-rate">0</span><span>/s</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Current Car Info -->
+            <section id="car-panel" class="ui-panel">
+                <h2 class="panel-title">Current Job</h2>
+                <div id="car-info">
+                    <div id="car-name">Waiting...</div>
+                    <div id="repair-bar-container">
+                        <div id="repair-bar"></div>
+                    </div>
+                    <div id="car-value">$0</div>
+                </div>
+            </section>
+
+            <!-- Upgrade Shop -->
+            <section id="shop-panel" class="ui-panel">
+                <h2 class="panel-title">Tools</h2>
+                <div id="upgrades-list"></div>
+            </section>
+
+            <!-- Workers Panel -->
+            <section id="workers-panel" class="ui-panel">
+                <h2 class="panel-title">Cat-Maids</h2>
+                <div id="workers-list"></div>
+            </section>
+
+            <!-- Menu Buttons -->
+            <section id="menu-panel" class="ui-panel">
+                <button id="save-btn" class="menu-btn">Save</button>
+                <button id="settings-btn" class="menu-btn">Settings</button>
+            </section>
+        </aside>
+
+        <!-- Car Queue Display (bottom) -->
+        <div id="queue-panel">
+            <h3 class="queue-title">Queue</h3>
+            <div id="car-queue"></div>
+        </div>
+
+        <!-- Notification Area -->
+        <div id="notifications"></div>
+
+        <!-- Offline Earnings Modal -->
+        <div id="offline-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Welcome Back!</h2>
+                <p>While you were away, your cat-maids earned:</p>
+                <div id="offline-earnings" class="glow-green">$0</div>
+                <button id="offline-ok-btn" class="menu-btn">Nyaa~!</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts loaded in order -->
+    <script src="js/utils/EventBus.js"></script>
+    <script src="js/utils/NumberFormatter.js"></script>
+
+    <script src="js/data/upgrades.js"></script>
+    <script src="js/data/workers.js"></script>
+    <script src="js/data/cars.js"></script>
+
+    <script src="js/entities/Car.js"></script>
+    <script src="js/entities/Worker.js"></script>
+
+    <script src="js/game/GameState.js"></script>
+    <script src="js/game/GameLoop.js"></script>
+
+    <script src="js/systems/ClickSystem.js"></script>
+    <script src="js/systems/UpgradeSystem.js"></script>
+    <script src="js/systems/WorkerSystem.js"></script>
+    <script src="js/systems/CarQueueSystem.js"></script>
+
+    <script src="js/rendering/Renderer.js"></script>
+
+    <script src="js/ui/UIManager.js"></script>
+    <script src="js/ui/ShopUI.js"></script>
+    <script src="js/ui/StatsUI.js"></script>
+
+    <script src="js/utils/SaveManager.js"></script>
+
+    <script src="js/game/Game.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

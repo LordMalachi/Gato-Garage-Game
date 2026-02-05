@@ -1,0 +1,139 @@
+/* Color scheme based on Cheese the Maid character */
+
+:root {
+    /* Primary colors from character */
+    --gato-green: #4ade80;        /* Hair/tail green */
+    --gato-green-dark: #22c55e;   /* Darker accent */
+    --gato-green-glow: #86efac;   /* Glow effect */
+
+    --maid-navy: #1e3a5f;         /* Outfit dark blue */
+    --maid-navy-dark: #0f172a;    /* Darker shade */
+
+    --apron-cream: #fef3c7;       /* Apron cream/white */
+    --apron-white: #fffbeb;       /* Lighter accent */
+
+    /* Cyberpunk accents */
+    --cyber-pink: #f472b6;        /* Neon pink accent */
+    --cyber-purple: #a855f7;      /* Purple glow */
+    --cyber-cyan: #22d3d3;        /* Teal accent */
+
+    /* UI colors */
+    --bg-primary: #0a1628;        /* Main background */
+    --bg-secondary: #1e293b;      /* Panel background */
+    --bg-tertiary: #334155;       /* Button/item background */
+
+    --text-primary: var(--apron-cream);
+    --text-secondary: #94a3b8;
+    --text-accent: var(--gato-green);
+
+    /* Game Boy inspired scanline effect */
+    --scanline-opacity: 0.03;
+}
+
+/* Cyberpunk glow effects */
+.glow-green {
+    text-shadow: 0 0 10px var(--gato-green),
+                 0 0 20px var(--gato-green-glow);
+}
+
+.glow-pink {
+    text-shadow: 0 0 10px var(--cyber-pink),
+                 0 0 20px var(--cyber-pink);
+}
+
+.glow-cyan {
+    text-shadow: 0 0 10px var(--cyber-cyan),
+                 0 0 20px var(--cyber-cyan);
+}
+
+/* Box glow effects */
+.box-glow-green {
+    box-shadow: 0 0 10px var(--gato-green),
+                inset 0 0 5px var(--gato-green-dark);
+}
+
+/* Scanline overlay for retro feel */
+.scanlines::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, var(--scanline-opacity)) 2px,
+        rgba(0, 0, 0, var(--scanline-opacity)) 4px
+    );
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* CRT screen curve effect (optional) */
+.crt-effect {
+    position: relative;
+}
+
+.crt-effect::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(
+        ellipse at center,
+        transparent 60%,
+        rgba(0, 0, 0, 0.3) 100%
+    );
+    pointer-events: none;
+    z-index: 11;
+}
+
+/* Neon text effect for titles */
+.neon-text {
+    color: var(--gato-green);
+    text-shadow:
+        0 0 5px var(--gato-green),
+        0 0 10px var(--gato-green),
+        0 0 20px var(--gato-green),
+        0 0 40px var(--gato-green-glow);
+    animation: neonPulse 2s ease-in-out infinite alternate;
+}
+
+@keyframes neonPulse {
+    from {
+        text-shadow:
+            0 0 5px var(--gato-green),
+            0 0 10px var(--gato-green),
+            0 0 20px var(--gato-green),
+            0 0 40px var(--gato-green-glow);
+    }
+    to {
+        text-shadow:
+            0 0 2px var(--gato-green),
+            0 0 5px var(--gato-green),
+            0 0 10px var(--gato-green),
+            0 0 20px var(--gato-green-glow);
+    }
+}
+
+/* Pixel-perfect rendering for all game elements */
+canvas, .pixel-art, img {
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-crisp-edges;
+    image-rendering: pixelated;
+}
+
+/* Selection colors */
+::selection {
+    background-color: var(--gato-green);
+    color: var(--bg-primary);
+}
+
+::-moz-selection {
+    background-color: var(--gato-green);
+    color: var(--bg-primary);
+}

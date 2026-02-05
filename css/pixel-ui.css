@@ -1,0 +1,249 @@
+/* Pixel-art styled UI components */
+
+/* Pixel border style - creates a chunky 8-bit border look */
+.pixel-border {
+    border-style: solid;
+    border-width: 4px;
+    border-image: linear-gradient(
+        135deg,
+        var(--gato-green) 25%,
+        var(--gato-green-dark) 25%,
+        var(--gato-green-dark) 50%,
+        var(--gato-green) 50%,
+        var(--gato-green) 75%,
+        var(--gato-green-dark) 75%
+    ) 1;
+}
+
+/* Pixel button style */
+.pixel-btn {
+    position: relative;
+    padding: 8px 16px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: var(--apron-cream);
+    background-color: var(--maid-navy);
+    border: none;
+    cursor: pointer;
+    text-transform: uppercase;
+
+    /* Pixel shadow effect */
+    box-shadow:
+        4px 4px 0 var(--maid-navy-dark),
+        inset -2px -2px 0 var(--maid-navy-dark),
+        inset 2px 2px 0 rgba(255, 255, 255, 0.1);
+}
+
+.pixel-btn:hover {
+    background-color: var(--gato-green-dark);
+    color: var(--bg-primary);
+}
+
+.pixel-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow:
+        2px 2px 0 var(--maid-navy-dark),
+        inset -2px -2px 0 var(--maid-navy-dark),
+        inset 2px 2px 0 rgba(255, 255, 255, 0.1);
+}
+
+.pixel-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pixel-btn:disabled:hover {
+    background-color: var(--maid-navy);
+    color: var(--apron-cream);
+}
+
+/* Pixel panel style */
+.pixel-panel {
+    background-color: var(--bg-secondary);
+    border: 4px solid;
+    border-color:
+        var(--maid-navy) var(--maid-navy-dark)
+        var(--maid-navy-dark) var(--maid-navy);
+    padding: 12px;
+}
+
+/* Pixel progress bar */
+.pixel-progress {
+    position: relative;
+    height: 20px;
+    background-color: var(--bg-primary);
+    border: 3px solid;
+    border-color:
+        var(--maid-navy-dark) var(--maid-navy)
+        var(--maid-navy) var(--maid-navy-dark);
+}
+
+.pixel-progress-fill {
+    height: 100%;
+    background: repeating-linear-gradient(
+        90deg,
+        var(--gato-green) 0px,
+        var(--gato-green) 4px,
+        var(--gato-green-dark) 4px,
+        var(--gato-green-dark) 8px
+    );
+    transition: width 0.1s linear;
+}
+
+/* Pixel input style */
+.pixel-input {
+    padding: 8px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: var(--apron-cream);
+    background-color: var(--bg-primary);
+    border: 3px solid;
+    border-color:
+        var(--maid-navy-dark) var(--maid-navy)
+        var(--maid-navy) var(--maid-navy-dark);
+    outline: none;
+}
+
+.pixel-input:focus {
+    border-color: var(--gato-green);
+}
+
+/* Pixel divider */
+.pixel-divider {
+    height: 4px;
+    background: repeating-linear-gradient(
+        90deg,
+        var(--maid-navy) 0px,
+        var(--maid-navy) 4px,
+        transparent 4px,
+        transparent 8px
+    );
+    margin: 8px 0;
+}
+
+/* Pixel tooltip */
+.pixel-tooltip {
+    position: relative;
+}
+
+.pixel-tooltip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 10px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    color: var(--apron-cream);
+    background-color: var(--bg-primary);
+    border: 2px solid var(--gato-green);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 100;
+}
+
+.pixel-tooltip:hover::after {
+    opacity: 1;
+}
+
+/* Pixel badge */
+.pixel-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    color: var(--bg-primary);
+    background-color: var(--cyber-pink);
+    border: 2px solid var(--cyber-pink);
+}
+
+.pixel-badge.green {
+    background-color: var(--gato-green);
+    border-color: var(--gato-green);
+}
+
+.pixel-badge.cyan {
+    background-color: var(--cyber-cyan);
+    border-color: var(--cyber-cyan);
+}
+
+/* Pixel card for shop items */
+.pixel-card {
+    position: relative;
+    padding: 10px;
+    background-color: var(--bg-tertiary);
+    border: 3px solid var(--maid-navy);
+    cursor: pointer;
+    transition: all 0.1s;
+}
+
+.pixel-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        var(--gato-green-glow),
+        transparent
+    );
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.pixel-card:hover {
+    border-color: var(--gato-green);
+}
+
+.pixel-card:hover::before {
+    opacity: 1;
+}
+
+.pixel-card.affordable {
+    border-color: var(--gato-green-dark);
+}
+
+.pixel-card.unaffordable {
+    opacity: 0.6;
+}
+
+/* Blinking cursor effect for text */
+.blink-cursor::after {
+    content: '_';
+    animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+/* Retro loading animation */
+.pixel-loading {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: var(--gato-green);
+    animation: pixelLoad 0.8s steps(4) infinite;
+}
+
+@keyframes pixelLoad {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.5); opacity: 0.5; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Stats counter animation */
+.counter-animate {
+    transition: transform 0.1s ease-out;
+}
+
+.counter-animate.bump {
+    transform: scale(1.2);
+}
