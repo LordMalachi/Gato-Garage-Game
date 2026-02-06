@@ -146,7 +146,10 @@ class UIManager {
      */
     updateRepairProgress(progress) {
         if (this.elements.repairBar) {
-            this.elements.repairBar.style.width = `${progress * 100}%`;
+            let pct = progress * 100;
+            if (!Number.isFinite(pct)) pct = 0;
+            pct = Math.max(0, Math.min(100, pct));
+            this.elements.repairBar.style.width = `${pct}%`;
         }
     }
 
@@ -274,6 +277,19 @@ class UIManager {
 
         if (this.elements.offlineEarnings) {
             this.elements.offlineEarnings.textContent = NumberFormatter.formatCurrency(data.earnings);
+        }
+
+        const timeEl = document.getElementById('offline-time');
+        const carsEl = document.getElementById('offline-cars');
+
+        if (timeEl) {
+            const minutes = Math.floor(data.time / 60000);
+            const seconds = Math.floor((data.time % 60000) / 1000);
+            timeEl.textContent = `${minutes}m ${seconds}s`;
+        }
+
+        if (carsEl) {
+            carsEl.textContent = NumberFormatter.format(data.carsRepaired);
         }
 
         this.elements.offlineModal.classList.remove('hidden');

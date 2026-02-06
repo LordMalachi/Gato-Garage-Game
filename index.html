@@ -26,6 +26,11 @@
 
             <!-- Floating damage numbers container -->
             <div id="floating-numbers"></div>
+
+            <!-- News Ticker -->
+            <div id="news-ticker">
+                <div id="news-content">Welcome to Gato Garage! Fixing cars, earning treats.</div>
+            </div>
         </div>
 
         <!-- UI Sidebar -->
@@ -98,6 +103,10 @@
                         <span class="stat-label">Cars Unlocked:</span>
                         <span id="stat-unlocked-cars">1 / 8</span>
                     </div>
+                    <div class="stat-row">
+                        <button id="open-ascension-btn" class="menu-btn pixel-btn small-btn hidden">ASCENSION
+                            AVAILABLE</button>
+                    </div>
                 </details>
             </section>
 
@@ -139,12 +148,8 @@
             </section>
         </aside>
 
-        <!-- Car Queue Display (bottom) -->
-        <div id="queue-panel">
-            <h3 class="queue-title">Queue</h3>
-            <div id="queue-status">Next car in 0.0s</div>
-            <div id="car-queue"></div>
-        </div>
+        <!-- Car Queue Display (bottom) - HIDDEN/REMOVED since we render it in canvas -->
+        <!-- <div id="queue-panel"> ... </div> -->
 
         <!-- Notification Area -->
         <div id="notifications"></div>
@@ -155,6 +160,10 @@
                 <h2>Welcome Back!</h2>
                 <p>While you were away, your cat-maids earned:</p>
                 <div id="offline-earnings" class="glow-green">$0</div>
+                <div class="offline-stats">
+                    <p>Time Away: <span id="offline-time">0m</span></p>
+                    <p>Cars Repaired: <span id="offline-cars">0</span></p>
+                </div>
                 <button id="offline-ok-btn" class="menu-btn">Nyaa~!</button>
             </div>
         </div>
@@ -165,16 +174,23 @@
                 <h2>Settings</h2>
 
                 <div class="settings-section">
-                    <h3>Music</h3>
+                    <h3>Audio</h3>
                     <div class="music-settings">
-                        <label for="music-volume">Volume</label>
+                        <label for="music-volume">Music</label>
                         <div class="music-volume-row">
                             <input id="music-volume" type="range" min="0" max="100" step="1" value="40">
                             <span id="music-volume-value">40%</span>
                         </div>
+
+                        <label for="sfx-volume">SFX</label>
+                        <div class="music-volume-row">
+                            <input id="sfx-volume" type="range" min="0" max="100" step="1" value="50">
+                            <span id="sfx-volume-value">50%</span>
+                        </div>
+
                         <label class="music-mute-row" for="music-mute">
                             <input id="music-mute" type="checkbox">
-                            <span>Mute Music</span>
+                            <span>Mute All</span>
                         </label>
                     </div>
                 </div>
@@ -242,6 +258,38 @@
             </div>
         </div>
     </div>
+    </div>
+
+    <!-- Ascension Modal -->
+    <div id="ascension-modal" class="modal hidden">
+        <div class="modal-content ascension-content">
+            <h2>Ascension</h2>
+            <div class="ascension-details">
+                <p>Reset your garage to gain <strong>Gato Nip</strong>!</p>
+                <div class="ascension-stats">
+                    <div class="stat-box">
+                        <span class="label">Current Nip</span>
+                        <span class="value" id="current-nip">0</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="label">Claimable</span>
+                        <span class="value glow-green" id="claimable-nip">0</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="label">Multiplier</span>
+                        <span class="value" id="next-multiplier">+0%</span>
+                    </div>
+                </div>
+                <p class="warning-text">You will lose money, upgrades, and garage levels.<br>You keep achievements and
+                    Gato Nip.</p>
+            </div>
+            <div class="confirm-buttons">
+                <button id="ascend-btn" class="menu-btn danger-btn">Ascend</button>
+                <button id="ascend-cancel-btn" class="menu-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+    </div>
 
     <!-- Scripts loaded in order -->
     <script src="js/utils/AssetLoader.js"></script>
@@ -266,12 +314,15 @@
     <script src="js/systems/WorkerSystem.js"></script>
     <script src="js/systems/CarQueueSystem.js"></script>
     <script src="js/systems/AchievementSystem.js"></script>
+    <script src="js/systems/PrestigeSystem.js"></script>
 
+    <script src="js/rendering/ParticleSystem.js"></script>
     <script src="js/rendering/Renderer.js"></script>
 
     <script src="js/ui/UIManager.js"></script>
     <script src="js/ui/ShopUI.js"></script>
     <script src="js/ui/StatsUI.js"></script>
+    <script src="js/ui/NewsTicker.js"></script>
 
     <script src="js/utils/SaveManager.js"></script>
     <script src="js/audio/AudioManager.js"></script>

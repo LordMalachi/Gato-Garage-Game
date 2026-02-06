@@ -5,6 +5,7 @@ class Game {
     constructor() {
         // Core state
         this.state = new GameState();
+        this.audioManager = new AudioManager();
 
         // Progression system (before other systems that depend on it)
         this.progressionSystem = new ProgressionSystem(this.state);
@@ -26,10 +27,17 @@ class Game {
         this.uiManager = new UIManager(this.state);
         this.shopUI = new ShopUI(this.upgradeSystem, this.workerSystem);
         this.statsUI = new StatsUI(this.state, this.clickSystem, this.workerSystem);
+        this.newsTicker = new NewsTicker(this.state);
 
         // Save manager
         this.saveManager = new SaveManager(this.state);
-        this.audioManager = new AudioManager();
+
+        // Audio events
+        this.setupAudioEvents();
+
+        // Particle System
+        this.particleSystem = new ParticleSystem();
+        this.setupParticleEvents();
 
         // Game loop
         this.gameLoop = new GameLoop(
@@ -44,11 +52,50 @@ class Game {
         this.startModal = null;
         this.runtimeStarted = false;
 
+        // Track car changes for UI sync
+        this.lastCarId = null;
+
         // Setup
         this.setupClickHandler();
         this.setupMenuButtons();
         this.setupSettingsModal();
         this.setupStartModal();
+    }
+
+    setupAudioEvents() {
+        EventBus.on(GameEvents.CLICK_PERFORMED, () => this.audioManager.playClick());
+        EventBus.on(GameEvents.CAR_REPAIRED, () => this.audioManager.playCoin());
+        EventBus.on(GameEvents.UPGRADE_PURCHASED, () => this.audioManager.playPurchase());
+        EventBus.on(GameEvents.WORKER_HIRED, () => this.audioManager.playPurchase());
+        EventBus.on(GameEvents.ACHIEVEMENT_UNLOCKED, () => this.audioManager.playUnlock());
+        EventBus.on(GameEvents.LEVEL_UP, () => this.audioManager.playUnlock());
+        EventBus.on(GameEvents.TIER_UP, () => this.audioManager.playUnlock());
+    }
+
+    setupParticleEvents() {
+        EventBus.on(GameEvents.CLICK_PERFORMED, (data) => {
+            this.particleSystem.spawnClickSparks(data.x, data.y, data.isCrit ? '#ffff00' : '#ffffff');
+        });
+        EventBus.on(GameEvents.CAR_REPAIRED, () => {
+            // Center of screen/car for cash
+            this.particleSystem.spawnCashParticles(160, 130, 100);
+            // Trigger visual flash
+            this.renderer.triggerTransition();
+        });
+        EventBus.on(GameEvents.ACHIEVEMENT_UNLOCKED, (data) => {
+            this.particleSystem.spawnConfetti(320, 288);
+            this.newsTicker.addNews(`ACHIEVEMENT: ${data.achievement.name}!`);
+        });
+        EventBus.on(GameEvents.LEVEL_UP, (level) => {
+            this.particleSystem.spawnConfetti(320, 288);
+            this.newsTicker.addNews(`LEVEL UP! Garage is now level ${level}`);
+        });
+        EventBus.on(GameEvents.TIER_UP, (tier) => {
+            this.newsTicker.addNews(`TIER UP! Now serving Tier ${tier} cars!`);
+        });
+        EventBus.on(GameEvents.WORKER_HIRED, (worker) => {
+            this.newsTicker.addNews(`HIRED: ${worker.name} joined the crew.`);
+        });
     }
 
     /**
@@ -84,9 +131,26 @@ class Game {
         // Update car queue
         this.carQueueSystem.update(deltaMs);
 
+        // Update particle system
+        this.particleSystem.update(deltaMs);
+
         // Update UI for current car
         if (this.state.currentCar) {
-            this.uiManager.updateRepairProgress(this.state.currentCar.getProgressPercent());
+            // Check for car switch (sync UI text)
+            if (this.state.currentCar.id !== this.lastCarId) {
+                this.uiManager.updateCurrentCar(this.state.currentCar);
+                this.lastCarId = this.state.currentCar.id;
+            }
+
+            // Sync progress bar (every frame)
+            const progress = this.state.currentCar.getProgressPercent();
+            this.uiManager.updateRepairProgress(progress);
+        } else {
+            if (this.lastCarId !== null) {
+                this.uiManager.updateCurrentCar(null);
+                this.lastCarId = null;
+            }
+            this.uiManager.updateRepairProgress(0);
         }
 
         // Update queue display periodically
@@ -96,6 +160,59 @@ class Game {
 
         // Update progression UI
         this.uiManager.updateProgressionUI(this.progressionSystem.getProgressInfo());
+
+        // Check for ascension availability periodically (e.g. every frame is fine for simple math)
+        this.checkAscensionStatus();
+    }
+
+    checkAscensionStatus() {
+        const claimable = this.prestigeSystem.calculateClaimableNip();
+        const btn = document.getElementById('open-ascension-btn');
+        if (btn) {
+            if (claimable > 0) {
+                btn.classList.remove('hidden');
+                btn.textContent = `ASCENSION AVAIL (+${claimable})`;
+            } else {
+                // If they have prestige currency already, allow them to open it to check stats
+                if (this.state.prestigeCurrency > 0) {
+                    btn.classList.remove('hidden');
+                    btn.textContent = `ASCENSION STATUS`;
+                } else {
+                    btn.classList.add('hidden');
+                }
+            }
+        }
+    }
+
+    openAscensionModal() {
+        const modal = document.getElementById('ascension-modal');
+        if (!modal) return;
+
+        const claimable = this.prestigeSystem.calculateClaimableNip();
+        const current = this.state.prestigeCurrency;
+        const newTotal = current + claimable;
+        const newMultiplier = (1 + newTotal * 0.05).toFixed(2);
+
+        document.getElementById('current-nip').textContent = current;
+        document.getElementById('claimable-nip').textContent = claimable > 0 ? `+${claimable}` : '0';
+        document.getElementById('next-multiplier').textContent = `x${newMultiplier}`;
+
+        const ascendBtn = document.getElementById('ascend-btn');
+        if (ascendBtn) {
+            ascendBtn.disabled = claimable <= 0;
+            if (claimable <= 0) {
+                ascendBtn.classList.add('disabled');
+            } else {
+                ascendBtn.classList.remove('disabled');
+            }
+        }
+
+        modal.classList.remove('hidden');
+    }
+
+    hideAscensionModal() {
+        const modal = document.getElementById('ascension-modal');
+        if (modal) modal.classList.add('hidden');
     }
 
     /**
@@ -103,6 +220,8 @@ class Game {
      * @param {number} interpolation - Frame interpolation (0-1)
      */
     render(interpolation) {
+        // Inject particle system into state for renderer (cleanest way without changing renderer signature too much)
+        this.state.particleSystem = this.particleSystem;
         this.renderer.render(this.state, interpolation);
     }
 
@@ -190,6 +309,35 @@ class Game {
                 this.openSettings();
             });
         }
+
+        const openAscensionBtn = document.getElementById('open-ascension-btn');
+        if (openAscensionBtn) {
+            openAscensionBtn.addEventListener('click', () => {
+                this.openAscensionModal();
+            });
+        }
+
+        const ascendBtn = document.getElementById('ascend-btn');
+        if (ascendBtn) {
+            ascendBtn.addEventListener('click', () => {
+                if (this.prestigeSystem.prestige()) {
+                    this.saveManager.save(); // Save the new state immediately
+                    this.hideAscensionModal();
+                    this.refreshUI(); // Refresh everything
+
+                    // Particle explosion for effect
+                    this.particleSystem.spawnConfetti(320, 288);
+                    this.particleSystem.spawnConfetti(320, 288); // Double confetti!
+                }
+            });
+        }
+
+        const ascendCancelBtn = document.getElementById('ascend-cancel-btn');
+        if (ascendCancelBtn) {
+            ascendCancelBtn.addEventListener('click', () => {
+                this.hideAscensionModal();
+            });
+        }
     }
 
     /**
@@ -235,25 +383,42 @@ class Game {
             });
         }
 
-        // Music controls
+        // Music/SFX controls
         const musicVolume = document.getElementById('music-volume');
         const musicVolumeValue = document.getElementById('music-volume-value');
+        const sfxVolume = document.getElementById('sfx-volume'); // New
+        const sfxVolumeValue = document.getElementById('sfx-volume-value'); // New
         const musicMute = document.getElementById('music-mute');
-        const { volume, muted } = this.audioManager.getSettings();
 
+        const { musicVolume: volMusic, sfxVolume: volSfx, muted } = this.audioManager.getSettings();
+
+        // Music slider
         if (musicVolume) {
-            musicVolume.value = String(Math.round(volume * 100));
+            musicVolume.value = String(Math.round(volMusic * 100));
             musicVolume.addEventListener('input', (event) => {
                 const percent = Number(event.target.value) || 0;
-                this.audioManager.setVolume(percent / 100);
-                this.updateMusicVolumeLabel(percent);
+                this.audioManager.setMusicVolume(percent / 100);
+                this.updateVolumeLabel('music-volume-value', percent);
             });
         }
-
         if (musicVolumeValue) {
-            this.updateMusicVolumeLabel(Math.round(volume * 100));
+            this.updateVolumeLabel('music-volume-value', Math.round(volMusic * 100));
         }
 
+        // SFX slider
+        if (sfxVolume) {
+            sfxVolume.value = String(Math.round(volSfx * 100));
+            sfxVolume.addEventListener('input', (event) => {
+                const percent = Number(event.target.value) || 0;
+                this.audioManager.setSfxVolume(percent / 100);
+                this.updateVolumeLabel('sfx-volume-value', percent);
+            });
+        }
+        if (sfxVolumeValue) {
+            this.updateVolumeLabel('sfx-volume-value', Math.round(volSfx * 100));
+        }
+
+        // Mute toggle
         if (musicMute) {
             musicMute.checked = muted;
             musicMute.addEventListener('change', (event) => {
@@ -420,13 +585,21 @@ class Game {
      */
     updateMusicSettings() {
         const musicVolume = document.getElementById('music-volume');
+        const sfxVolume = document.getElementById('sfx-volume');
         const musicMute = document.getElementById('music-mute');
-        const { volume, muted } = this.audioManager.getSettings();
+
+        const { musicVolume: volMusic, sfxVolume: volSfx, muted } = this.audioManager.getSettings();
 
         if (musicVolume) {
-            const percent = Math.round(volume * 100);
+            const percent = Math.round(volMusic * 100);
             musicVolume.value = String(percent);
-            this.updateMusicVolumeLabel(percent);
+            this.updateVolumeLabel('music-volume-value', percent);
+        }
+
+        if (sfxVolume) {
+            const percent = Math.round(volSfx * 100);
+            sfxVolume.value = String(percent);
+            this.updateVolumeLabel('sfx-volume-value', percent);
         }
 
         if (musicMute) {
@@ -435,13 +608,14 @@ class Game {
     }
 
     /**
-     * Update music volume label text
+     * Update volume label text
+     * @param {string} id - Element ID
      * @param {number} percent - Volume percent (0-100)
      */
-    updateMusicVolumeLabel(percent) {
-        const musicVolumeValue = document.getElementById('music-volume-value');
-        if (musicVolumeValue) {
-            musicVolumeValue.textContent = `${percent}%`;
+    updateVolumeLabel(id, percent) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.textContent = `${percent}%`;
         }
     }
 

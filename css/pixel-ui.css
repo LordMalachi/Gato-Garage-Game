@@ -4,15 +4,13 @@
 .pixel-border {
     border-style: solid;
     border-width: 4px;
-    border-image: linear-gradient(
-        135deg,
-        var(--gato-green) 25%,
-        var(--gato-green-dark) 25%,
-        var(--gato-green-dark) 50%,
-        var(--gato-green) 50%,
-        var(--gato-green) 75%,
-        var(--gato-green-dark) 75%
-    ) 1;
+    border-image: linear-gradient(135deg,
+            var(--gato-green) 25%,
+            var(--gato-green-dark) 25%,
+            var(--gato-green-dark) 50%,
+            var(--gato-green) 50%,
+            var(--gato-green) 75%,
+            var(--gato-green-dark) 75%) 1;
 }
 
 /* Pixel button style */
@@ -62,8 +60,7 @@
     background-color: var(--bg-secondary);
     border: 4px solid;
     border-color:
-        var(--maid-navy) var(--maid-navy-dark)
-        var(--maid-navy-dark) var(--maid-navy);
+        var(--maid-navy) var(--maid-navy-dark) var(--maid-navy-dark) var(--maid-navy);
     padding: 16px;
 }
 
@@ -74,19 +71,16 @@
     background-color: var(--bg-primary);
     border: 3px solid;
     border-color:
-        var(--maid-navy-dark) var(--maid-navy)
-        var(--maid-navy) var(--maid-navy-dark);
+        var(--maid-navy-dark) var(--maid-navy) var(--maid-navy) var(--maid-navy-dark);
 }
 
 .pixel-progress-fill {
     height: 100%;
-    background: repeating-linear-gradient(
-        90deg,
-        var(--gato-green) 0px,
-        var(--gato-green) 4px,
-        var(--gato-green-dark) 4px,
-        var(--gato-green-dark) 8px
-    );
+    background: repeating-linear-gradient(90deg,
+            var(--gato-green) 0px,
+            var(--gato-green) 4px,
+            var(--gato-green-dark) 4px,
+            var(--gato-green-dark) 8px);
     transition: width 0.1s linear;
 }
 
@@ -99,8 +93,7 @@
     background-color: var(--bg-primary);
     border: 3px solid;
     border-color:
-        var(--maid-navy-dark) var(--maid-navy)
-        var(--maid-navy) var(--maid-navy-dark);
+        var(--maid-navy-dark) var(--maid-navy) var(--maid-navy) var(--maid-navy-dark);
     outline: none;
 }
 
@@ -111,13 +104,11 @@
 /* Pixel divider */
 .pixel-divider {
     height: 4px;
-    background: repeating-linear-gradient(
-        90deg,
-        var(--maid-navy) 0px,
-        var(--maid-navy) 4px,
-        transparent 4px,
-        transparent 8px
-    );
+    background: repeating-linear-gradient(90deg,
+            var(--maid-navy) 0px,
+            var(--maid-navy) 4px,
+            transparent 4px,
+            transparent 8px);
     margin: 10px 0;
 }
 
@@ -187,12 +178,10 @@
     left: 0;
     right: 0;
     height: 3px;
-    background: linear-gradient(
-        90deg,
-        transparent,
-        var(--gato-green-glow),
-        transparent
-    );
+    background: linear-gradient(90deg,
+            transparent,
+            var(--gato-green-glow),
+            transparent);
     opacity: 0;
     transition: opacity 0.2s;
 }
@@ -220,8 +209,16 @@
 }
 
 @keyframes blink {
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0; }
+
+    0%,
+    50% {
+        opacity: 1;
+    }
+
+    51%,
+    100% {
+        opacity: 0;
+    }
 }
 
 /* Retro loading animation */
@@ -234,9 +231,20 @@
 }
 
 @keyframes pixelLoad {
-    0% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.5); opacity: 0.5; }
-    100% { transform: scale(1); opacity: 1; }
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.5);
+        opacity: 0.5;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 /* Stats counter animation */
@@ -246,4 +254,39 @@
 
 .counter-animate.bump {
     transform: scale(1.2);
+}
+
+/* News Ticker */
+#news-ticker {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 24px;
+    background-color: var(--maid-navy-dark);
+    border-top: 2px solid var(--gato-green);
+    overflow: hidden;
+    white-space: nowrap;
+    z-index: 100;
+    pointer-events: none;
+}
+
+#news-content {
+    display: inline-block;
+    padding-left: 100%;
+    animation: ticker 30s linear infinite;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    color: var(--gato-green);
+    line-height: 24px;
+}
+
+@keyframes ticker {
+    0% {
+        transform: translate3d(0, 0, 0);
+    }
+
+    100% {
+        transform: translate3d(-100%, 0, 0);
+    }
 }

@@ -32,7 +32,10 @@ class ProgressionSystem {
      * Returns cumulative XP required to reach each level
      */
     static generateXPTable() {
-        const table = [0]; // Level 1 starts at 0 XP
+        // Level 1 starts at 0 XP
+        // Level 2 starts at 100 XP
+        // Level N starts at sum(prev)
+        const table = [0];
         let cumulative = 0;
 
         for (let level = 1; level <= 100; level++) {
@@ -135,16 +138,17 @@ class ProgressionSystem {
      * @returns {number} Cumulative XP required
      */
     getXPForLevel(level) {
-        if (level <= 0) return 0;
-        if (level >= ProgressionSystem.XP_TABLE.length) {
+        if (level <= 1) return 0;
+        if (level > ProgressionSystem.XP_TABLE.length) {
             // Extrapolate for very high levels
-            const lastKnownLevel = ProgressionSystem.XP_TABLE.length - 1;
-            const lastKnownXP = ProgressionSystem.XP_TABLE[lastKnownLevel];
-            const extraLevels = level - lastKnownLevel;
-            const extraXP = Math.floor(100 * Math.pow(1.15, lastKnownLevel) * extraLevels);
-            return lastKnownXP + extraXP;
+            const lastKnownLevel = ProgressionSystem.XP_TABLE.length;
+            const lastKnownXP = ProgressionSystem.XP_TABLE[lastKnownLevel - 1];
+            // Simple linear extrapolation for safety (or continue exp)
+            return lastKnownXP + (level - lastKnownLevel) * 10000;
         }
-        return ProgressionSystem.XP_TABLE[level];
+        // Level 1 is index 0 (0 XP)
+        // Level 2 is index 1 (100 XP)
+        return ProgressionSystem.XP_TABLE[level - 1];
     }
 
     /**

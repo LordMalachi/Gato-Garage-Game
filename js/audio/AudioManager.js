@@ -1,16 +1,25 @@
 /**
- * AudioManager - Handles background music playback and audio settings
+ * AudioManager - Handles background music playback and audio settings, plus synthesized SFX.
  */
 class AudioManager {
     constructor() {
         this.settingsKey = 'gato-garage-audio-settings';
+        // Music tracks
         this.musicPath = 'assets/sounds/music/Gato_Garage.mp3';
         this.music = null;
+
+        // Audio Context for SFX
+        this.audioCtx = null;
+        this.sfxGainNode = null;
+
+        // State
         this.started = false;
         this.unlockListenersAttached = false;
 
+        // Defaults
         const savedSettings = this.loadSettings();
-        this.volume = savedSettings.volume;
+        this.musicVolume = savedSettings.musicVolume !== undefined ? savedSettings.musicVolume : 0.4;
+        this.sfxVolume = savedSettings.sfxVolume !== undefined ? savedSettings.sfxVolume : 0.5;
         this.muted = savedSettings.muted;
 
         this.initMusic();
@@ -23,15 +32,36 @@ class AudioManager {
         this.music = new Audio(this.musicPath);
         this.music.loop = true;
         this.music.preload = 'auto';
-        this.music.volume = this.getEffectiveVolume();
+        this.applyMusicVolume();
     }
 
     /**
-     * Start background music playback
+     * Initialize AudioContext for SFX on first interaction
+     */
+    initAudioContext() {
+        if (this.audioCtx) return;
+
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.audioCtx = new AudioContext();
+
+            // Create a master gain node for SFX
+            this.sfxGainNode = this.audioCtx.createGain();
+            this.sfxGainNode.connect(this.audioCtx.destination);
+            this.applySfxVolume();
+        } catch (e) {
+            console.warn('Web Audio API not supported', e);
+        }
+    }
+
+    /**
+     * Start background music playback and init context
      */
     start() {
         this.started = true;
         this.tryPlayMusic();
+        // Context will be initialized on user interaction via unlock listeners
+        // or immediately if already allowed.
     }
 
     /**
@@ -41,31 +71,46 @@ class AudioManager {
         if (!this.music) return;
         this.music.pause();
         this.music.currentTime = 0;
+
+        if (this.audioCtx && this.audioCtx.state === 'running') {
+            this.audioCtx.suspend();
+        }
     }
 
     /**
      * Update music volume
      * @param {number} volume - Volume from 0.0 to 1.0
      */
-    setVolume(volume) {
-        const clamped = Math.max(0, Math.min(1, volume));
-        this.volume = clamped;
-        this.applyVolume();
+    setMusicVolume(volume) {
+        this.musicVolume = Math.max(0, Math.min(1, volume));
+        this.applyMusicVolume();
         this.saveSettings();
     }
 
     /**
-     * Mute or unmute music
-     * @param {boolean} muted - Whether music should be muted
+     * Update SFX volume
+     * @param {number} volume - Volume from 0.0 to 1.0
+     */
+    setSfxVolume(volume) {
+        this.sfxVolume = Math.max(0, Math.min(1, volume));
+        this.applySfxVolume();
+        this.saveSettings();
+    }
+
+    /**
+     * Mute or unmute all audio
+     * @param {boolean} muted - Whether audio should be muted
      */
     setMuted(muted) {
         this.muted = Boolean(muted);
-        this.applyVolume();
+        this.applyMusicVolume();
 
         if (this.muted) {
             this.music.pause();
-        } else if (this.started) {
-            this.tryPlayMusic();
+            if (this.audioCtx) this.audioCtx.suspend();
+        } else {
+            if (this.started) this.tryPlayMusic();
+            if (this.audioCtx) this.audioCtx.resume();
         }
 
         this.saveSettings();
@@ -73,11 +118,11 @@ class AudioManager {
 
     /**
      * Get current audio settings
-     * @returns {{volume:number, muted:boolean}}
      */
     getSettings() {
         return {
-            volume: this.volume,
+            musicVolume: this.musicVolume,
+            sfxVolume: this.sfxVolume,
             muted: this.muted
         };
     }
@@ -101,80 +146,139 @@ class AudioManager {
         this.unlockListenersAttached = true;
 
         const unlock = () => {
-            this.tryPlayMusic();
+            // Init Web Audio API if needed
+            this.initAudioContext();
+
+            // Resume context if suspended
+            if (this.audioCtx && this.audioCtx.state === 'suspended') {
+                this.audioCtx.resume();
+            }
+
+            // Play music
+            if (this.started && !this.muted) {
+                this.music.play().catch(e => console.warn('Music play failed', e));
+            }
+
             this.detachUnlockListeners();
         };
 
-        document.addEventListener('pointerdown', unlock, true);
-        document.addEventListener('keydown', unlock, true);
-        document.addEventListener('touchstart', unlock, true);
+        const events = ['click', 'touchstart', 'keydown', 'mousedown'];
+        events.forEach(e => document.addEventListener(e, unlock, { once: true, capture: true }));
         this.unlockHandler = unlock;
     }
 
-    /**
-     * Remove unlock listeners
-     */
     detachUnlockListeners() {
-        if (!this.unlockListenersAttached || !this.unlockHandler) return;
-
-        document.removeEventListener('pointerdown', this.unlockHandler, true);
-        document.removeEventListener('keydown', this.unlockHandler, true);
-        document.removeEventListener('touchstart', this.unlockHandler, true);
         this.unlockListenersAttached = false;
-        this.unlockHandler = null;
+        // Listeners are {once: true} so they remove themselves, but we clear flag
     }
 
-    /**
-     * Apply effective volume to audio element
-     */
-    applyVolume() {
+    applyMusicVolume() {
         if (!this.music) return;
-        this.music.volume = this.getEffectiveVolume();
+        this.music.volume = this.muted ? 0 : this.musicVolume;
     }
 
-    /**
-     * Effective volume accounting for mute state
-     * @returns {number}
-     */
-    getEffectiveVolume() {
-        return this.muted ? 0 : this.volume;
+    applySfxVolume() {
+        if (!this.sfxGainNode) return;
+        this.sfxGainNode.gain.setValueAtTime(this.muted ? 0 : this.sfxVolume, this.audioCtx.currentTime);
     }
 
-    /**
-     * Load saved audio settings
-     * @returns {{volume:number, muted:boolean}}
-     */
     loadSettings() {
-        const defaults = { volume: 0.4, muted: false };
+        const defaults = { musicVolume: 0.4, sfxVolume: 0.5, muted: false };
         try {
             const raw = localStorage.getItem(this.settingsKey);
             if (!raw) return defaults;
-
-            const parsed = JSON.parse(raw);
-            const volume = typeof parsed.volume === 'number' ? parsed.volume : defaults.volume;
-            const muted = Boolean(parsed.muted);
-
-            return {
-                volume: Math.max(0, Math.min(1, volume)),
-                muted
-            };
+            return { ...defaults, ...JSON.parse(raw) };
         } catch (error) {
-            console.warn('Failed to load audio settings:', error);
             return defaults;
         }
     }
 
-    /**
-     * Persist audio settings
-     */
     saveSettings() {
         try {
-            localStorage.setItem(this.settingsKey, JSON.stringify({
-                volume: this.volume,
-                muted: this.muted
-            }));
+            localStorage.setItem(this.settingsKey, JSON.stringify(this.getSettings()));
         } catch (error) {
             console.warn('Failed to save audio settings:', error);
         }
+    }
+
+    // --- SYNTHESIZED SFX ---
+
+    /**
+     * Play a sound using an oscillator
+     */
+    playTone({ freq = 440, type = 'sine', duration = 0.1, ramp = null, vol = 1.0 }) {
+        if (this.muted || !this.audioCtx || this.sfxVolume <= 0) return;
+
+        // Improve latency handling
+        if (this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume();
+        }
+
+        const t = this.audioCtx.currentTime;
+        const osc = this.audioCtx.createOscillator();
+        const gain = this.audioCtx.createGain();
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, t);
+
+        // Frequency ramp (slide)
+        if (ramp) {
+            osc.frequency.exponentialRampToValueAtTime(ramp, t + duration);
+        }
+
+        gain.gain.setValueAtTime(vol, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + duration);
+
+        osc.connect(gain);
+        gain.connect(this.sfxGainNode);
+
+        osc.start(t);
+        osc.stop(t + duration + 0.1);
+
+        // Cleanup
+        setTimeout(() => {
+            osc.disconnect();
+            gain.disconnect();
+        }, (duration + 0.1) * 1000);
+    }
+
+    playClick() {
+        // High pitched short beep
+        this.playTone({ freq: 880, type: 'square', duration: 0.05, vol: 0.1 });
+    }
+
+    playCoin() {
+        // High coin sound (two tones)
+        this.playTone({ freq: 1200, type: 'sine', duration: 0.1, vol: 0.3 });
+        setTimeout(() => {
+            this.playTone({ freq: 1800, type: 'sine', duration: 0.2, vol: 0.3 });
+        }, 50);
+    }
+
+    playRepair() {
+        // Mechanical ratchet (low burst)
+        this.playTone({ freq: 100, type: 'sawtooth', duration: 0.08, ramp: 50, vol: 0.2 });
+    }
+
+    playPurchase() {
+        // Register cha-ching
+        this.playTone({ freq: 600, type: 'square', duration: 0.1, vol: 0.2 });
+        setTimeout(() => {
+            this.playTone({ freq: 1200, type: 'square', duration: 0.3, vol: 0.2 });
+        }, 80);
+    }
+
+    playUnlock() {
+        // Victory jingle
+        const now = 0;
+        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+            setTimeout(() => {
+                this.playTone({ freq, type: 'triangle', duration: 0.2, vol: 0.3 });
+            }, i * 100);
+        });
+    }
+
+    playError() {
+        this.playTone({ freq: 150, type: 'sawtooth', duration: 0.2, ramp: 100, vol: 0.2 });
     }
 }
