@@ -164,6 +164,21 @@
                 <h2>Settings</h2>
 
                 <div class="settings-section">
+                    <h3>Music</h3>
+                    <div class="music-settings">
+                        <label for="music-volume">Volume</label>
+                        <div class="music-volume-row">
+                            <input id="music-volume" type="range" min="0" max="100" step="1" value="40">
+                            <span id="music-volume-value">40%</span>
+                        </div>
+                        <label class="music-mute-row" for="music-mute">
+                            <input id="music-mute" type="checkbox">
+                            <span>Mute Music</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-section">
                     <h3>Save Data</h3>
                     <div class="settings-buttons">
                         <button id="load-game-btn" class="menu-btn settings-btn">
@@ -258,6 +273,7 @@
     <script src="js/ui/StatsUI.js"></script>
 
     <script src="js/utils/SaveManager.js"></script>
+    <script src="js/audio/AudioManager.js"></script>
 
     <script src="js/game/Game.js"></script>
     <script src="js/main.js"></script>

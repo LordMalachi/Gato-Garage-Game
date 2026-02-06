@@ -29,6 +29,7 @@ class Game {
 
         // Save manager
         this.saveManager = new SaveManager(this.state);
+        this.audioManager = new AudioManager();
 
         // Game loop
         this.gameLoop = new GameLoop(
@@ -234,6 +235,32 @@ class Game {
             });
         }
 
+        // Music controls
+        const musicVolume = document.getElementById('music-volume');
+        const musicVolumeValue = document.getElementById('music-volume-value');
+        const musicMute = document.getElementById('music-mute');
+        const { volume, muted } = this.audioManager.getSettings();
+
+        if (musicVolume) {
+            musicVolume.value = String(Math.round(volume * 100));
+            musicVolume.addEventListener('input', (event) => {
+                const percent = Number(event.target.value) || 0;
+                this.audioManager.setVolume(percent / 100);
+                this.updateMusicVolumeLabel(percent);
+            });
+        }
+
+        if (musicVolumeValue) {
+            this.updateMusicVolumeLabel(Math.round(volume * 100));
+        }
+
+        if (musicMute) {
+            musicMute.checked = muted;
+            musicMute.addEventListener('change', (event) => {
+                this.audioManager.setMuted(event.target.checked);
+            });
+        }
+
         // Confirm modal buttons
         const confirmYes = document.getElementById('confirm-yes-btn');
         const confirmNo = document.getElementById('confirm-no-btn');
@@ -299,6 +326,7 @@ class Game {
         this.statsUI.start();
         this.saveManager.startAutoSave();
         this.gameLoop.start();
+        this.audioManager.start();
     }
 
     /**
@@ -381,8 +409,39 @@ class Game {
      */
     openSettings() {
         this.updateSaveStatus();
+        this.updateMusicSettings();
         if (this.settingsModal) {
             this.settingsModal.classList.remove('hidden');
+        }
+    }
+
+    /**
+     * Sync music settings controls with current values
+     */
+    updateMusicSettings() {
+        const musicVolume = document.getElementById('music-volume');
+        const musicMute = document.getElementById('music-mute');
+        const { volume, muted } = this.audioManager.getSettings();
+
+        if (musicVolume) {
+            const percent = Math.round(volume * 100);
+            musicVolume.value = String(percent);
+            this.updateMusicVolumeLabel(percent);
+        }
+
+        if (musicMute) {
+            musicMute.checked = muted;
+        }
+    }
+
+    /**
+     * Update music volume label text
+     * @param {number} percent - Volume percent (0-100)
+     */
+    updateMusicVolumeLabel(percent) {
+        const musicVolumeValue = document.getElementById('music-volume-value');
+        if (musicVolumeValue) {
+            musicVolumeValue.textContent = `${percent}%`;
         }
     }
 
@@ -563,6 +622,7 @@ class Game {
         this.saveManager.stopAutoSave();
         this.statsUI.stop();
         this.gameLoop.stop();
+        this.audioManager.stop();
         console.log('Game shutdown');
     }
 
