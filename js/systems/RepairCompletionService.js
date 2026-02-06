@@ -4,13 +4,16 @@
  */
 const RepairCompletionService = {
     state: null,
+    progressionSystem: null,
 
     /**
-     * Initialize the service with game state
+     * Initialize the service with game state and progression system
      * @param {GameState} gameState - Game state reference
+     * @param {ProgressionSystem} progressionSystem - Progression system reference
      */
-    init(gameState) {
+    init(gameState, progressionSystem) {
         this.state = gameState;
+        this.progressionSystem = progressionSystem;
     },
 
     /**
@@ -18,14 +21,14 @@ const RepairCompletionService = {
      * @param {boolean} isAutoRepair - Whether this was an auto-repair (from workers)
      * @returns {Object|null} Repair result with car and payment, or null if no car
      */
-    completeRepair(isAutoRepair = false) {
+    completeRepair(isAutoRepair = false, clickBonusMultiplier = 1) {
         const car = this.state.currentCar;
         if (!car) return null;
 
         // Calculate payment
         const baseValue = car.getValue();
         const valueMultiplier = this.state.getCarValueMultiplier();
-        const payment = Math.floor(baseValue * valueMultiplier);
+        const payment = Math.floor(baseValue * valueMultiplier * clickBonusMultiplier);
 
         // Add currency
         this.state.addCurrency(payment);
@@ -35,11 +38,21 @@ const RepairCompletionService = {
             this.state.carsRepaired++;
         }
 
+        // Award XP based on original repair cost (before tier scaling)
+        if (this.progressionSystem) {
+            const tier = car.tier || 1;
+            const multiplier = 1 + (tier - 1) * 0.5;
+            const baseCost = tier > 1 ? Math.floor(car.repairCost / multiplier) : car.repairCost;
+            const xpEarned = Math.floor(baseCost / 10);
+            this.progressionSystem.addXP(xpEarned);
+        }
+
         // Emit completion event
         EventBus.emit(GameEvents.CAR_REPAIRED, {
             car,
             payment,
-            isAutoRepair
+            isAutoRepair,
+            clickBonusMultiplier
         });
 
         // Clear current car (CarQueueSystem will assign next)

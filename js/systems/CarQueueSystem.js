@@ -5,9 +5,11 @@ class CarQueueSystem {
     /**
      * Create car queue system
      * @param {GameState} gameState - Game state reference
+     * @param {ProgressionSystem} progressionSystem - Progression system reference
      */
-    constructor(gameState) {
+    constructor(gameState, progressionSystem) {
         this.state = gameState;
+        this.progressionSystem = progressionSystem;
 
         // Configuration
         this.maxQueueSize = 5;
@@ -65,8 +67,14 @@ class CarQueueSystem {
      * Spawn a new random car into the queue
      */
     spawnCar() {
-        const carDef = getRandomCar();
+        // Get random car from unlocked pool
+        const unlockedCars = this.state.unlockedCars;
+        const carDef = getRandomCar(unlockedCars);
         const car = new Car(carDef);
+
+        // Apply tier scaling
+        const tier = this.progressionSystem.getCurrentTier();
+        car.applyTierScaling(tier);
 
         this.state.carQueue.push(car);
 

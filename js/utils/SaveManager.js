@@ -163,8 +163,34 @@ class SaveManager {
     migrate(saveData) {
         console.log(`Migrating save from version ${saveData.version} to ${this.version}`);
 
-        // Add migration logic here as versions change
-        // For now, just update version
+        // Migrate to progression system (if missing progression data)
+        if (!saveData.state.garageLevel) {
+            console.log('Migrating to progression system...');
+
+            // Estimate level from cars repaired (conservative: 1 level per 10 cars)
+            const carsRepaired = saveData.state.carsRepaired || 0;
+            const estimatedLevel = Math.max(1, Math.floor(carsRepaired / 10));
+
+            // Calculate XP for estimated level
+            const estimatedXP = ProgressionSystem.XP_TABLE[estimatedLevel] || 0;
+
+            saveData.state.garageXP = estimatedXP;
+            saveData.state.garageLevel = estimatedLevel;
+            saveData.state.currentTier = Math.floor(estimatedLevel / 10) + 1;
+
+            // Unlock all cars up to estimated level (be generous)
+            saveData.state.unlockedCars = ProgressionSystem.getUnlockedCarsForLevel(estimatedLevel);
+
+            console.log(`Save migrated: Level ${estimatedLevel}, Tier ${saveData.state.currentTier}, Unlocked ${saveData.state.unlockedCars.length} cars`);
+
+            // Show notification to player
+            EventBus.emit(GameEvents.NOTIFICATION, {
+                message: `Your garage has been upgraded to Level ${estimatedLevel}!`,
+                type: 'success'
+            });
+        }
+
+        // Update version
         saveData.version = this.version;
     }
 

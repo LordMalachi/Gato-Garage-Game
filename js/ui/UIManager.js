@@ -18,15 +18,20 @@ class UIManager {
             carValue: document.getElementById('car-value'),
             repairBar: document.getElementById('repair-bar'),
             carQueue: document.getElementById('car-queue'),
+            queueStatus: document.getElementById('queue-status'),
             floatingNumbers: document.getElementById('floating-numbers'),
             notifications: document.getElementById('notifications'),
             offlineModal: document.getElementById('offline-modal'),
             offlineEarnings: document.getElementById('offline-earnings'),
             offlineOkBtn: document.getElementById('offline-ok-btn'),
-            saveBtn: document.getElementById('save-btn')
+            saveBtn: document.getElementById('save-btn'),
+            comboValue: document.getElementById('combo-value'),
+            comboBar: document.getElementById('combo-bar'),
+            progressionDisplay: document.getElementById('progression-display')
         };
 
         this.setupEventListeners();
+        this.createProgressionUI();
     }
 
     /**
@@ -44,7 +49,20 @@ class UIManager {
         EventBus.on(GameEvents.NOTIFICATION, (data) => this.showNotification(data.message));
         EventBus.on(GameEvents.GAME_SAVED, () => this.showNotification('Game saved!'));
         EventBus.on(GameEvents.ACHIEVEMENT_UNLOCKED, (data) => {
-            this.showNotification(`🏆 ${data.achievement.name}!`);
+            this.showNotification(`Achievement: ${data.achievement.name}`);
+        });
+        EventBus.on(GameEvents.CLICK_PERFORMED, (data) => this.updateCombo(data.combo));
+
+        // Progression events
+        EventBus.on(GameEvents.XP_EARNED, (data) => this.showFloatingXP(data.amount));
+        EventBus.on(GameEvents.LEVEL_UP, (data) => {
+            this.showNotification(`Level Up! Garage Level ${data.newLevel}`, 'success');
+        });
+        EventBus.on(GameEvents.TIER_UP, (data) => {
+            this.showNotification(`Tier ${data.newTier} Unlocked! Cars are harder but more valuable!`, 'epic');
+        });
+        EventBus.on(GameEvents.CAR_UNLOCKED, (data) => {
+            this.showNotification(`${data.carName} Unlocked!`, 'success');
         });
 
         // Offline modal button
@@ -137,7 +155,10 @@ class UIManager {
      * @param {Object} data - Event data
      */
     onCarRepaired(data) {
-        this.showNotification(`+${NumberFormatter.formatCurrency(data.payment)}`);
+        const comboBonus = data.clickBonusMultiplier && data.clickBonusMultiplier > 1
+            ? ` (Combo +${Math.floor((data.clickBonusMultiplier - 1) * 100)}%)`
+            : '';
+        this.showNotification(`+${NumberFormatter.formatCurrency(data.payment)}${comboBonus}`);
 
         // Clear current car display
         this.updateCurrentCar(null);
@@ -166,6 +187,37 @@ class UIManager {
             emptyEl.className = 'queue-car';
             emptyEl.innerHTML = '<span>-</span>';
             this.elements.carQueue.appendChild(emptyEl);
+        }
+    }
+
+    /**
+     * Update queue timing and fullness display
+     * @param {Object} queueInfo - Queue info from CarQueueSystem
+     */
+    updateQueueStatus(queueInfo) {
+        if (!this.elements.queueStatus || !queueInfo) return;
+
+        if (queueInfo.queueLength >= queueInfo.maxSize) {
+            this.elements.queueStatus.textContent = 'Queue full';
+            return;
+        }
+
+        const seconds = (queueInfo.timeToNextSpawn / 1000).toFixed(1);
+        this.elements.queueStatus.textContent = `Next car in ${seconds}s`;
+    }
+
+    /**
+     * Update combo HUD state
+     * @param {number} combo - Current combo multiplier
+     */
+    updateCombo(combo) {
+        if (this.elements.comboValue) {
+            this.elements.comboValue.textContent = `x${combo.toFixed(1)}`;
+        }
+
+        if (this.elements.comboBar) {
+            const percent = Math.min(100, Math.max(0, ((combo - 1) / 1) * 100));
+            this.elements.comboBar.style.width = `${percent}%`;
         }
     }
 
@@ -245,5 +297,92 @@ class UIManager {
         this.updateAutoRate(this.state.autoRepairRate);
         this.updateCurrentCar(this.state.currentCar);
         this.updateCarQueue(this.state.carQueue);
+        this.updateCombo(1);
+    }
+
+    /**
+     * Create progression UI elements
+     */
+    createProgressionUI() {
+        if (!this.elements.progressionDisplay) return;
+
+        this.elements.progressionDisplay.innerHTML = `
+            <div class="xp-bar">
+                <div class="xp-info">
+                    <span class="garage-level">Level 1</span>
+                    <span class="tier-badge tier-1">Tier 1</span>
+                </div>
+                <div class="xp-progress-container">
+                    <div class="xp-progress-fill"></div>
+                    <span class="xp-text">0 / 100 XP</span>
+                </div>
+                <div class="next-unlock"></div>
+            </div>
+        `;
+    }
+
+    /**
+     * Update progression UI display
+     * @param {Object} progressInfo - Progression info from ProgressionSystem
+     */
+    updateProgressionUI(progressInfo) {
+        if (!this.elements.progressionDisplay) return;
+
+        const { level, xp, nextLevelXP, tier, progress, nextUnlock } = progressInfo;
+
+        const garageLevel = this.elements.progressionDisplay.querySelector('.garage-level');
+        const tierBadge = this.elements.progressionDisplay.querySelector('.tier-badge');
+        const xpText = this.elements.progressionDisplay.querySelector('.xp-text');
+        const xpFill = this.elements.progressionDisplay.querySelector('.xp-progress-fill');
+        const nextUnlockEl = this.elements.progressionDisplay.querySelector('.next-unlock');
+
+        if (garageLevel) {
+            garageLevel.textContent = `Level ${level}`;
+        }
+
+        if (tierBadge) {
+            tierBadge.textContent = `Tier ${tier}`;
+            tierBadge.className = `tier-badge tier-${tier}`;
+        }
+
+        if (xpText) {
+            xpText.textContent = `${NumberFormatter.format(xp)} / ${NumberFormatter.format(nextLevelXP)} XP`;
+        }
+
+        if (xpFill) {
+            xpFill.style.width = `${progress * 100}%`;
+        }
+
+        if (nextUnlockEl && nextUnlock) {
+            nextUnlockEl.textContent = `Next unlock: ${nextUnlock.carName} at Level ${nextUnlock.level}`;
+        } else if (nextUnlockEl) {
+            nextUnlockEl.textContent = 'All cars unlocked!';
+        }
+    }
+
+    /**
+     * Show floating XP text
+     * @param {number} amount - XP amount earned
+     */
+    showFloatingXP(amount) {
+        if (!this.elements.progressionDisplay) return;
+
+        const xpElement = document.createElement('div');
+        xpElement.className = 'floating-xp';
+        xpElement.textContent = `+${amount} XP`;
+
+        // Position near progression bar
+        const rect = this.elements.progressionDisplay.getBoundingClientRect();
+        xpElement.style.position = 'fixed';
+        xpElement.style.left = `${rect.left + rect.width / 2}px`;
+        xpElement.style.top = `${rect.top}px`;
+        xpElement.style.transform = 'translateX(-50%)';
+
+        document.body.appendChild(xpElement);
+
+        // Remove after animation
+        setTimeout(() => {
+            xpElement.remove();
+        }, 1500);
     }
 }

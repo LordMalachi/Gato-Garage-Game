@@ -21,6 +21,9 @@ class Car {
         // Current repair state
         this.repairProgress = 0;
         this.createdAt = Date.now();
+
+        // Tier scaling (default to tier 1)
+        this.tier = 1;
     }
 
     /**
@@ -79,6 +82,22 @@ class Car {
     }
 
     /**
+     * Apply tier scaling to this car's difficulty and reward
+     * @param {number} tier - Difficulty tier to apply
+     */
+    applyTierScaling(tier) {
+        if (tier <= 1) {
+            this.tier = 1;
+            return; // No scaling for tier 1
+        }
+
+        const multiplier = 1 + (tier - 1) * 0.5;
+        this.repairCost = Math.floor(this.repairCost * multiplier);
+        this.baseValue = Math.floor(this.baseValue * multiplier);
+        this.tier = tier;
+    }
+
+    /**
      * Serialize car for saving
      * @returns {Object} Serialized car data
      */
@@ -86,7 +105,8 @@ class Car {
         return {
             id: this.id,
             repairProgress: this.repairProgress,
-            createdAt: this.createdAt
+            createdAt: this.createdAt,
+            tier: this.tier || 1
         };
     }
 
@@ -105,6 +125,13 @@ class Car {
         const car = new Car(carDef);
         car.repairProgress = data.repairProgress || 0;
         car.createdAt = data.createdAt || Date.now();
+        car.tier = data.tier || 1;
+
+        // Apply tier scaling to match saved tier
+        if (car.tier > 1) {
+            car.applyTierScaling(car.tier);
+        }
+
         return car;
     }
 }

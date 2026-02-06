@@ -23,11 +23,18 @@ class StatsUI {
             carsRepaired: document.getElementById('stat-cars-repaired'),
             totalEarned: document.getElementById('stat-total-earned'),
             totalSpent: document.getElementById('stat-total-spent'),
-            playTime: document.getElementById('stat-play-time')
+            playTime: document.getElementById('stat-play-time'),
+            garageLevel: document.getElementById('stat-garage-level'),
+            currentTier: document.getElementById('stat-current-tier'),
+            totalXP: document.getElementById('stat-total-xp'),
+            unlockedCars: document.getElementById('stat-unlocked-cars'),
+            achievementSummary: document.getElementById('achievement-summary'),
+            achievementsList: document.getElementById('achievements-list')
         };
 
         // Update interval
         this.updateInterval = null;
+        this.achievementRenderKey = '';
     }
 
     /**
@@ -83,6 +90,7 @@ class StatsUI {
 
         // Update extended stats
         this.updateExtendedStats();
+        this.updateAchievements();
     }
 
     /**
@@ -129,6 +137,36 @@ class StatsUI {
                 this.elements.playTime.textContent = formatted;
             }
         }
+
+        // Progression stats
+        if (this.elements.garageLevel) {
+            const formatted = this.state.garageLevel.toString();
+            if (this.elements.garageLevel.textContent !== formatted) {
+                this.elements.garageLevel.textContent = formatted;
+            }
+        }
+
+        if (this.elements.currentTier) {
+            const formatted = `Tier ${this.state.currentTier}`;
+            if (this.elements.currentTier.textContent !== formatted) {
+                this.elements.currentTier.textContent = formatted;
+            }
+        }
+
+        if (this.elements.totalXP) {
+            const formatted = NumberFormatter.format(this.state.garageXP);
+            if (this.elements.totalXP.textContent !== formatted) {
+                this.elements.totalXP.textContent = formatted;
+            }
+        }
+
+        if (this.elements.unlockedCars) {
+            const totalCars = Object.keys(CarData).length;
+            const formatted = `${this.state.unlockedCars.length} / ${totalCars}`;
+            if (this.elements.unlockedCars.textContent !== formatted) {
+                this.elements.unlockedCars.textContent = formatted;
+            }
+        }
     }
 
     /**
@@ -156,5 +194,43 @@ class StatsUI {
      */
     forceUpdate() {
         this.update();
+    }
+
+    /**
+     * Update achievement summary and compact list
+     */
+    updateAchievements() {
+        const achievementList = getAchievementList();
+        const unlockedCount = achievementList.filter(a => !!this.state.achievements[a.id]).length;
+        const renderKey = `${unlockedCount}:${Object.keys(this.state.achievements).join(',')}`;
+
+        if (this.elements.achievementSummary) {
+            this.elements.achievementSummary.textContent = `${unlockedCount} / ${achievementList.length} unlocked`;
+        }
+
+        if (!this.elements.achievementsList) return;
+        if (this.achievementRenderKey === renderKey) return;
+        this.achievementRenderKey = renderKey;
+
+        const sorted = [...achievementList].sort((a, b) => {
+            const aUnlocked = !!this.state.achievements[a.id];
+            const bUnlocked = !!this.state.achievements[b.id];
+            if (aUnlocked !== bUnlocked) return aUnlocked ? 1 : -1;
+            return a.condition.value - b.condition.value;
+        });
+
+        const top = sorted.slice(0, 6);
+        this.elements.achievementsList.innerHTML = '';
+
+        top.forEach(achievement => {
+            const unlocked = !!this.state.achievements[achievement.id];
+            const item = document.createElement('div');
+            item.className = `achievement-item${unlocked ? ' unlocked' : ''}`;
+            item.innerHTML = `
+                <div class="achievement-title">${achievement.icon} ${achievement.name}</div>
+                <div>${achievement.description}</div>
+            `;
+            this.elements.achievementsList.appendChild(item);
+        });
     }
 }

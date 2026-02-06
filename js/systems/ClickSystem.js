@@ -106,7 +106,8 @@ class ClickSystem {
      * Complete the current car repair and process payment
      */
     completeRepair() {
-        RepairCompletionService.completeRepair(false);
+        const payoutBonus = 1 + Math.max(0, this.comboMultiplier - 1) * 0.5;
+        RepairCompletionService.completeRepair(false, payoutBonus);
     }
 
     /**

@@ -116,10 +116,23 @@ const RarityColors = {
 
 /**
  * Get a random car type based on weights
+ * @param {Array<string>} unlockedCarIds - Array of unlocked car IDs (optional, defaults to all)
  * @returns {Object} Random car definition
  */
-function getRandomCar() {
-    const cars = Object.values(CarData);
+function getRandomCar(unlockedCarIds = null) {
+    let cars = Object.values(CarData);
+
+    // Filter to only unlocked cars if specified
+    if (unlockedCarIds && unlockedCarIds.length > 0) {
+        cars = cars.filter(car => unlockedCarIds.includes(car.id));
+    }
+
+    // Safety check: if no cars available, return hatchback
+    if (cars.length === 0) {
+        console.warn('No unlocked cars available, defaulting to hatchback');
+        return CarData.hatchback;
+    }
+
     const totalWeight = cars.reduce((sum, car) => sum + car.weight, 0);
 
     let random = Math.random() * totalWeight;

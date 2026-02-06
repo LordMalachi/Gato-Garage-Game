@@ -57,11 +57,17 @@ class ShopUI {
             item.classList.add('disabled');
         }
 
+        const gap = Math.max(0, upgrade.cost - this.upgradeSystem.state.currency);
+        const gapMarkup = !upgrade.canPurchase && !upgrade.isMaxed
+            ? `<div class="shop-item-gap">Need ${NumberFormatter.formatCurrency(gap)}</div>`
+            : '';
+
         item.innerHTML = `
             <div class="shop-item-info">
                 <div class="shop-item-name">${upgrade.name}</div>
                 <div class="shop-item-desc">${upgrade.description}</div>
                 <div class="shop-item-level">Lv.${upgrade.level}${upgrade.isMaxed ? ' (MAX)' : `/${upgrade.maxLevel}`}</div>
+                ${gapMarkup}
             </div>
             <div class="shop-item-cost">
                 ${upgrade.isMaxed ? 'MAXED' : NumberFormatter.formatCurrency(upgrade.cost)}
@@ -69,7 +75,7 @@ class ShopUI {
         `;
 
         if (!upgrade.isMaxed) {
-            item.addEventListener('click', () => this.purchaseUpgrade(upgrade.id));
+            item.addEventListener('click', (event) => this.purchaseUpgrade(upgrade.id, event));
         }
 
         return item;
@@ -79,12 +85,17 @@ class ShopUI {
      * Purchase an upgrade
      * @param {string} upgradeId - Upgrade ID
      */
-    purchaseUpgrade(upgradeId) {
-        const success = this.upgradeSystem.purchase(upgradeId);
+    purchaseUpgrade(upgradeId, event) {
+        const buyCount = event?.shiftKey ? 10 : 1;
+        let purchased = 0;
+        for (let i = 0; i < buyCount; i++) {
+            if (!this.upgradeSystem.purchase(upgradeId)) break;
+            purchased++;
+        }
 
-        if (success) {
+        if (purchased > 0) {
             EventBus.emit(GameEvents.NOTIFICATION, {
-                message: `Purchased ${UpgradeData[upgradeId].name}!`
+                message: `Purchased ${UpgradeData[upgradeId].name} x${purchased}`
             });
         }
     }
@@ -119,18 +130,24 @@ class ShopUI {
             item.classList.add('disabled');
         }
 
+        const gap = Math.max(0, worker.cost - this.workerSystem.state.currency);
+        const gapMarkup = !worker.canHire
+            ? `<div class="shop-item-gap">Need ${NumberFormatter.formatCurrency(gap)}</div>`
+            : '';
+
         item.innerHTML = `
             <div class="shop-item-info">
                 <div class="shop-item-name" style="color: ${worker.color}">${worker.name}</div>
                 <div class="shop-item-desc">${worker.repairRate}/s repair</div>
                 <div class="shop-item-level">Owned: ${worker.owned}</div>
+                ${gapMarkup}
             </div>
             <div class="shop-item-cost">
                 ${NumberFormatter.formatCurrency(worker.cost)}
             </div>
         `;
 
-        item.addEventListener('click', () => this.hireWorker(worker.id));
+        item.addEventListener('click', (event) => this.hireWorker(worker.id, event));
 
         return item;
     }
@@ -139,13 +156,18 @@ class ShopUI {
      * Hire a worker
      * @param {string} workerId - Worker type ID
      */
-    hireWorker(workerId) {
-        const success = this.workerSystem.hire(workerId);
+    hireWorker(workerId, event) {
+        const buyCount = event?.shiftKey ? 10 : 1;
+        let hired = 0;
+        for (let i = 0; i < buyCount; i++) {
+            if (!this.workerSystem.hire(workerId)) break;
+            hired++;
+        }
 
-        if (success) {
+        if (hired > 0) {
             const worker = WorkerData[workerId];
             EventBus.emit(GameEvents.NOTIFICATION, {
-                message: `Hired ${worker.name}!`
+                message: `Hired ${worker.name} x${hired}`
             });
         }
     }
@@ -154,34 +176,8 @@ class ShopUI {
      * Update affordability state of all items
      */
     updateAffordability() {
-        // Update upgrades
-        const upgradeItems = this.upgradesList?.querySelectorAll('.shop-item');
-        upgradeItems?.forEach(item => {
-            const upgradeId = item.dataset.upgradeId;
-            const info = this.upgradeSystem.getUpgradeInfo(upgradeId);
-
-            item.classList.toggle('disabled', !info.canPurchase);
-
-            // Update cost display
-            const costEl = item.querySelector('.shop-item-cost');
-            if (costEl && !info.isMaxed) {
-                costEl.textContent = NumberFormatter.formatCurrency(info.cost);
-            }
-        });
-
-        // Update workers
-        const workerItems = this.workersList?.querySelectorAll('.shop-item');
-        workerItems?.forEach(item => {
-            const workerId = item.dataset.workerId;
-            const info = this.workerSystem.getWorkerInfo(workerId);
-
-            item.classList.toggle('disabled', !info.canHire);
-
-            // Update cost display
-            const costEl = item.querySelector('.shop-item-cost');
-            if (costEl) {
-                costEl.textContent = NumberFormatter.formatCurrency(info.cost);
-            }
-        });
+        // Full re-render keeps costs, gaps, and levels accurate.
+        this.renderUpgrades();
+        this.renderWorkers();
     }
 }

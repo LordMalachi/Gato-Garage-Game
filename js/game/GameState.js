@@ -50,6 +50,12 @@ class GameState {
         this.lastSaveTime = Date.now();
         this.totalPlayTime = 0;
         this.sessionStartTime = Date.now();
+
+        // Progression
+        this.garageXP = 0;
+        this.garageLevel = 1;
+        this.currentTier = 1;
+        this.unlockedCars = ['hatchback']; // Start with only starter car
     }
 
     /**
@@ -179,7 +185,13 @@ class GameState {
 
             // Time
             lastSaveTime: Date.now(),
-            totalPlayTime: this.totalPlayTime + this.getSessionTime()
+            totalPlayTime: this.totalPlayTime + this.getSessionTime(),
+
+            // Progression
+            garageXP: this.garageXP,
+            garageLevel: this.garageLevel,
+            currentTier: this.currentTier,
+            unlockedCars: [...this.unlockedCars]
         };
     }
 
@@ -219,6 +231,12 @@ class GameState {
         this.lastSaveTime = data.lastSaveTime || Date.now();
         this.totalPlayTime = data.totalPlayTime || 0;
         this.sessionStartTime = Date.now();
+
+        // Progression
+        this.garageXP = data.garageXP || 0;
+        this.garageLevel = data.garageLevel || 1;
+        this.currentTier = data.currentTier || 1;
+        this.unlockedCars = data.unlockedCars || ['hatchback'];
 
         // Recalculate derived values
         this.recalculateStats();

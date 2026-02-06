@@ -6,15 +6,18 @@ class Game {
         // Core state
         this.state = new GameState();
 
+        // Progression system (before other systems that depend on it)
+        this.progressionSystem = new ProgressionSystem(this.state);
+
         // Systems
         this.clickSystem = new ClickSystem(this.state);
         this.upgradeSystem = new UpgradeSystem(this.state);
         this.workerSystem = new WorkerSystem(this.state);
-        this.carQueueSystem = new CarQueueSystem(this.state);
+        this.carQueueSystem = new CarQueueSystem(this.state, this.progressionSystem);
         this.achievementSystem = new AchievementSystem(this.state);
 
         // Initialize repair completion service
-        RepairCompletionService.init(this.state);
+        RepairCompletionService.init(this.state, this.progressionSystem);
 
         // Rendering
         this.renderer = new Renderer('game-canvas');
@@ -37,36 +40,31 @@ class Game {
         this.settingsModal = null;
         this.confirmModal = null;
         this.confirmCallback = null;
+        this.startModal = null;
+        this.runtimeStarted = false;
 
         // Setup
         this.setupClickHandler();
         this.setupMenuButtons();
         this.setupSettingsModal();
+        this.setupStartModal();
     }
 
     /**
      * Initialize and start the game
-     * Always starts fresh - use Settings to load saved game
      */
     init() {
         console.log('Initializing Gato Garage...');
 
-        // Always start a new game by default
-        console.log('Starting new game');
-        this.carQueueSystem.forceSpawn();
-
-        // Update UI with current state
-        this.uiManager.updateAll();
-        this.shopUI.renderUpgrades();
-        this.shopUI.renderWorkers();
-
-        // Update settings modal save status
+        // Initial UI render before start choice
+        this.refreshUI();
         this.updateSaveStatus();
 
-        // Start systems
-        this.statsUI.start();
-        this.saveManager.startAutoSave();
-        this.gameLoop.start();
+        if (this.saveManager.hasSave()) {
+            this.showStartModal();
+        } else {
+            this.startNewGame();
+        }
 
         console.log('Gato Garage started!');
     }
@@ -92,6 +90,11 @@ class Game {
 
         // Update queue display periodically
         this.uiManager.updateCarQueue(this.state.carQueue);
+        this.uiManager.updateQueueStatus(this.carQueueSystem.getQueueInfo());
+        this.uiManager.updateCombo(this.clickSystem.getCombo());
+
+        // Update progression UI
+        this.uiManager.updateProgressionUI(this.progressionSystem.getProgressInfo());
     }
 
     /**
@@ -106,31 +109,36 @@ class Game {
      * Setup click handler on game canvas
      */
     setupClickHandler() {
-        // Use the canvas directly for click detection (works with letterboxing)
+        const clickArea = document.getElementById('click-area');
         const canvas = this.renderer.canvas;
-        if (!canvas) {
-            console.warn('Canvas not found');
+        if (!clickArea || !canvas) {
+            console.warn('Click area or canvas not found');
             return;
         }
 
-        canvas.addEventListener('click', (event) => {
+        const handlePointer = (clientX, clientY) => {
             const rect = canvas.getBoundingClientRect();
-            const x = event.clientX - rect.left;
-            const y = event.clientY - rect.top;
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            // Ignore clicks/taps outside the rendered canvas area.
+            if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+                return;
+            }
 
             this.handleClick(x, y);
+        };
+
+        clickArea.addEventListener('click', (event) => {
+            handlePointer(event.clientX, event.clientY);
         });
 
         // Also handle touch for future mobile support
-        canvas.addEventListener('touchstart', (event) => {
+        clickArea.addEventListener('touchstart', (event) => {
             event.preventDefault();
             const touch = event.touches[0];
-            const rect = canvas.getBoundingClientRect();
-            const x = touch.clientX - rect.left;
-            const y = touch.clientY - rect.top;
-
-            this.handleClick(x, y);
-        });
+            handlePointer(touch.clientX, touch.clientY);
+        }, { passive: false });
     }
 
     /**
@@ -145,9 +153,10 @@ class Game {
         const internalWidth = this.renderer.internalWidth;
         const internalHeight = this.renderer.internalHeight;
 
-        // Get actual display size from CSS
-        const displayWidth = parseFloat(canvas.style.width) || canvas.width;
-        const displayHeight = parseFloat(canvas.style.height) || canvas.height;
+        // Use actual rendered display size
+        const rect = canvas.getBoundingClientRect();
+        const displayWidth = rect.width || canvas.width;
+        const displayHeight = rect.height || canvas.height;
 
         // Scale screen coordinates to internal resolution
         const x = (screenX / displayWidth) * internalWidth;
@@ -258,6 +267,116 @@ class Game {
     }
 
     /**
+     * Setup startup modal handlers
+     */
+    setupStartModal() {
+        this.startModal = document.getElementById('start-modal');
+        const continueBtn = document.getElementById('continue-save-btn');
+        const newGameBtn = document.getElementById('new-game-btn');
+        const startMessage = document.getElementById('start-message');
+
+        if (startMessage) {
+            startMessage.textContent = this.saveManager.hasSave()
+                ? 'Save data found. Continue your garage or start over?'
+                : 'Start a new garage?';
+        }
+
+        if (continueBtn) {
+            continueBtn.addEventListener('click', () => this.continueFromSave());
+        }
+
+        if (newGameBtn) {
+            newGameBtn.addEventListener('click', () => this.startNewGame());
+        }
+    }
+
+    /**
+     * Start periodic systems once
+     */
+    startRuntime() {
+        if (this.runtimeStarted) return;
+        this.runtimeStarted = true;
+        this.statsUI.start();
+        this.saveManager.startAutoSave();
+        this.gameLoop.start();
+    }
+
+    /**
+     * Refresh all game-facing UI
+     */
+    refreshUI() {
+        this.uiManager.updateAll();
+        this.shopUI.renderUpgrades();
+        this.shopUI.renderWorkers();
+        this.statsUI.forceUpdate();
+    }
+
+    /**
+     * Ensure the player has a current car after state loads
+     */
+    ensureActiveCar() {
+        if (!this.state.currentCar && this.state.carQueue.length === 0) {
+            this.carQueueSystem.forceSpawn();
+        } else if (!this.state.currentCar && this.state.carQueue.length > 0) {
+            this.state.currentCar = this.state.carQueue.shift();
+        }
+    }
+
+    /**
+     * Show startup modal
+     */
+    showStartModal() {
+        if (this.startModal) {
+            this.startModal.classList.remove('hidden');
+        }
+    }
+
+    /**
+     * Hide startup modal
+     */
+    hideStartModal() {
+        if (this.startModal) {
+            this.startModal.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Start a new game run
+     */
+    startNewGame() {
+        this.hideStartModal();
+        this.state.reset();
+        this.carQueueSystem.forceSpawn();
+        this.refreshUI();
+        EventBus.emit(GameEvents.NOTIFICATION, { message: 'Started a new garage run!' });
+        this.startRuntime();
+    }
+
+    /**
+     * Continue from local save
+     */
+    continueFromSave() {
+        const offlineProgress = this.saveManager.load();
+        if (offlineProgress === null) {
+            EventBus.emit(GameEvents.NOTIFICATION, { message: 'Save load failed. Starting new game.' });
+            this.startNewGame();
+            return;
+        }
+
+        this.state.recalculateStats();
+        this.ensureActiveCar();
+        this.refreshUI();
+        this.hideStartModal();
+        EventBus.emit(GameEvents.NOTIFICATION, { message: 'Loaded saved game!' });
+
+        if (offlineProgress.earnings > 0) {
+            EventBus.emit(GameEvents.OFFLINE_EARNINGS, offlineProgress);
+        }
+
+        this.startRuntime();
+    }
+
+    /**
      * Open settings modal
      */
     openSettings() {
@@ -325,29 +444,9 @@ class Game {
                         currency: this.state.currency
                     });
 
-                    // Ensure there's a car to work on
-                    if (!this.state.currentCar && this.state.carQueue.length === 0) {
-                        console.log('No car found, spawning one...');
-                        this.carQueueSystem.forceSpawn();
-                    } else if (!this.state.currentCar && this.state.carQueue.length > 0) {
-                        // Move first car from queue to current
-                        console.log('Moving car from queue to current...');
-                        this.state.currentCar = this.state.carQueue.shift();
-                    }
-
-                    // Update all UI elements
-                    this.uiManager.updateAll();
-                    this.shopUI.renderUpgrades();
-                    this.shopUI.renderWorkers();
-
-                    // Force update current car display
-                    if (this.state.currentCar) {
-                        this.uiManager.updateCurrentCar(this.state.currentCar);
-                        this.uiManager.updateRepairProgress(this.state.currentCar.getProgressPercent());
-                    }
-
-                    // Update queue display
-                    this.uiManager.updateCarQueue(this.state.carQueue);
+                    this.ensureActiveCar();
+                    this.refreshUI();
+                    this.uiManager.updateQueueStatus(this.carQueueSystem.getQueueInfo());
 
                     EventBus.emit(GameEvents.NOTIFICATION, { message: 'Game loaded!' });
                     this.closeSettings();
@@ -403,14 +502,8 @@ class Game {
 
                 if (success) {
                     this.state.recalculateStats();
-
-                    if (!this.state.currentCar && this.state.carQueue.length === 0) {
-                        this.carQueueSystem.forceSpawn();
-                    }
-
-                    this.uiManager.updateAll();
-                    this.shopUI.renderUpgrades();
-                    this.shopUI.renderWorkers();
+                    this.ensureActiveCar();
+                    this.refreshUI();
                     this.updateSaveStatus();
 
                     EventBus.emit(GameEvents.NOTIFICATION, { message: 'Save imported!' });

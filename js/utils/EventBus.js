@@ -110,5 +110,11 @@ const GameEvents = {
 
     // UI events
     NOTIFICATION: 'ui:notification',
-    SHOP_UPDATED: 'ui:shop:updated'
+    SHOP_UPDATED: 'ui:shop:updated',
+
+    // Progression events
+    XP_EARNED: 'progression:xp:earned',
+    LEVEL_UP: 'progression:level:up',
+    TIER_UP: 'progression:tier:up',
+    CAR_UNLOCKED: 'progression:car:unlocked'
 };

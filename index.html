@@ -33,6 +33,10 @@
             <!-- Stats Panel -->
             <section id="stats-panel" class="ui-panel">
                 <h1 class="game-title">GATO GARAGE</h1>
+
+                <!-- Progression Bar -->
+                <div id="progression-display"></div>
+
                 <div id="currency-display" class="glow-green">
                     <span class="currency-symbol">$</span>
                     <span id="currency-value">0</span>
@@ -45,6 +49,15 @@
                     <div class="rate-item">
                         <span class="rate-label">Auto:</span>
                         <span id="auto-rate">0</span><span>/s</span>
+                    </div>
+                </div>
+                <div id="combo-display">
+                    <div class="combo-row">
+                        <span class="rate-label">Combo:</span>
+                        <span id="combo-value">x1.0</span>
+                    </div>
+                    <div id="combo-bar-container">
+                        <div id="combo-bar"></div>
                     </div>
                 </div>
                 <div id="extended-stats">
@@ -67,6 +80,22 @@
                     <div class="stat-row">
                         <span class="stat-label">Time:</span>
                         <span id="stat-play-time">0s</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Garage Level:</span>
+                        <span id="stat-garage-level">1</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Current Tier:</span>
+                        <span id="stat-current-tier">Tier 1</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Total XP:</span>
+                        <span id="stat-total-xp">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Cars Unlocked:</span>
+                        <span id="stat-unlocked-cars">1 / 8</span>
                     </div>
                 </div>
             </section>
@@ -95,6 +124,13 @@
                 <div id="workers-list"></div>
             </section>
 
+            <!-- Achievements -->
+            <section id="achievements-panel" class="ui-panel">
+                <h2 class="panel-title">Achievements</h2>
+                <div id="achievement-summary">0 / 0 unlocked</div>
+                <div id="achievements-list"></div>
+            </section>
+
             <!-- Menu Buttons -->
             <section id="menu-panel" class="ui-panel">
                 <button id="save-btn" class="menu-btn">Save</button>
@@ -105,6 +141,7 @@
         <!-- Car Queue Display (bottom) -->
         <div id="queue-panel">
             <h3 class="queue-title">Queue</h3>
+            <div id="queue-status">Next car in 0.0s</div>
             <div id="car-queue"></div>
         </div>
 
@@ -176,6 +213,18 @@
                 </div>
             </div>
         </div>
+
+        <!-- Start Modal -->
+        <div id="start-modal" class="modal hidden">
+            <div class="modal-content start-content">
+                <h2>Welcome to Gato Garage</h2>
+                <p id="start-message">Start a new garage?</p>
+                <div class="confirm-buttons">
+                    <button id="continue-save-btn" class="menu-btn">Continue Save</button>
+                    <button id="new-game-btn" class="menu-btn">New Game</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Scripts loaded in order -->
@@ -194,6 +243,7 @@
     <script src="js/game/GameState.js"></script>
     <script src="js/game/GameLoop.js"></script>
 
+    <script src="js/systems/ProgressionSystem.js"></script>
     <script src="js/systems/RepairCompletionService.js"></script>
     <script src="js/systems/ClickSystem.js"></script>
     <script src="js/systems/UpgradeSystem.js"></script>
