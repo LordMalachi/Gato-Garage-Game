@@ -1,5 +1,7 @@
 /**
- * AudioManager - Handles background music playback and audio settings, plus synthesized SFX.
+ * AudioManager - Handles background music playback and synthesized SFX.
+ * SFX are generated with the Web Audio API using layered oscillators for
+ * chunky, satisfying 8-bit style sounds.
  */
 class AudioManager {
     constructor() {
@@ -36,7 +38,7 @@ class AudioManager {
     }
 
     /**
-     * Initialize AudioContext for SFX on first interaction
+     * Initialize AudioContext for SFX
      */
     initAudioContext() {
         if (this.audioCtx) return;
@@ -45,13 +47,28 @@ class AudioManager {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             this.audioCtx = new AudioContext();
 
-            // Create a master gain node for SFX
+            // Master gain for all SFX
             this.sfxGainNode = this.audioCtx.createGain();
             this.sfxGainNode.connect(this.audioCtx.destination);
             this.applySfxVolume();
         } catch (e) {
             console.warn('Web Audio API not supported', e);
         }
+    }
+
+    /**
+     * Ensure AudioContext is running (resumed). Call before scheduling any SFX.
+     * Returns true if the context is usable.
+     */
+    ensureContext() {
+        if (!this.audioCtx) {
+            this.initAudioContext();
+            if (!this.audioCtx) return false;
+        }
+        if (this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume();
+        }
+        return this.audioCtx.state !== 'closed';
     }
 
     /**
@@ -70,10 +87,7 @@ class AudioManager {
         if (!this.music) return;
         this.music.pause();
         this.music.currentTime = 0;
-
-        if (this.audioCtx && this.audioCtx.state === 'running') {
-            this.audioCtx.suspend();
-        }
+        // Don't suspend the AudioContext on stop — it causes problems resuming later
     }
 
     /**
@@ -103,13 +117,16 @@ class AudioManager {
     setMuted(muted) {
         this.muted = Boolean(muted);
         this.applyMusicVolume();
+        this.applySfxVolume();
 
         if (this.muted) {
             this.music.pause();
-            if (this.audioCtx) this.audioCtx.suspend();
         } else {
             if (this.started) this.tryPlayMusic();
-            if (this.audioCtx) this.audioCtx.resume();
+            // Resume context so SFX works immediately after unmute
+            if (this.audioCtx && this.audioCtx.state === 'suspended') {
+                this.audioCtx.resume();
+            }
         }
 
         this.saveSettings();
@@ -145,15 +162,12 @@ class AudioManager {
         this.unlockListenersAttached = true;
 
         const unlock = () => {
-            // Init Web Audio API if needed
             this.initAudioContext();
 
-            // Resume context if suspended
             if (this.audioCtx && this.audioCtx.state === 'suspended') {
                 this.audioCtx.resume();
             }
 
-            // Play music
             if (this.started && !this.muted) {
                 this.music.play().catch(e => console.warn('Music play failed', e));
             }
@@ -179,8 +193,9 @@ class AudioManager {
     }
 
     applySfxVolume() {
-        if (!this.sfxGainNode) return;
-        this.sfxGainNode.gain.setValueAtTime(this.muted ? 0 : this.sfxVolume, this.audioCtx.currentTime);
+        if (!this.sfxGainNode || !this.audioCtx) return;
+        const vol = this.muted ? 0 : this.sfxVolume;
+        this.sfxGainNode.gain.setValueAtTime(vol, this.audioCtx.currentTime);
     }
 
     loadSettings() {
@@ -202,90 +217,155 @@ class AudioManager {
         }
     }
 
-    // --- SYNTHESIZED SFX ---
+    // -------------------------------------------------------------------------
+    // SYNTHESIZED SFX
+    // -------------------------------------------------------------------------
 
     /**
-     * Play a sound using an oscillator
+     * Schedule an oscillator tone on the audio context.
+     * All volume values are pre-master-gain (the sfxGainNode applies on top).
      */
-    playTone({ freq = 440, type = 'sine', duration = 0.1, ramp = null, vol = 1.0 }) {
+    playTone({ freq = 440, type = 'sine', duration = 0.12, ramp = null, vol = 1.0, delay = 0 }) {
         if (this.muted || this.sfxVolume <= 0) return;
+        if (!this.ensureContext()) return;
 
-        // Lazy-init AudioContext on first SFX play
-        if (!this.audioCtx) {
-            this.initAudioContext();
-            if (!this.audioCtx) return;
-        }
-
-        // Improve latency handling
-        if (this.audioCtx.state === 'suspended') {
-            this.audioCtx.resume();
-        }
-
-        const t = this.audioCtx.currentTime;
+        const t = this.audioCtx.currentTime + delay;
         const osc = this.audioCtx.createOscillator();
         const gain = this.audioCtx.createGain();
 
         osc.type = type;
         osc.frequency.setValueAtTime(freq, t);
 
-        // Frequency ramp (slide)
         if (ramp) {
             osc.frequency.exponentialRampToValueAtTime(ramp, t + duration);
         }
 
-        gain.gain.setValueAtTime(vol, t);
-        gain.gain.exponentialRampToValueAtTime(0.01, t + duration);
+        // Attack + sustain + release envelope
+        gain.gain.setValueAtTime(0.001, t);
+        gain.gain.linearRampToValueAtTime(vol, t + 0.005); // fast attack
+        gain.gain.setValueAtTime(vol, t + duration * 0.6);  // sustain
+        gain.gain.exponentialRampToValueAtTime(0.001, t + duration); // release
 
         osc.connect(gain);
         gain.connect(this.sfxGainNode);
 
         osc.start(t);
-        osc.stop(t + duration + 0.1);
+        osc.stop(t + duration + 0.05);
 
-        // Cleanup
-        setTimeout(() => {
+        osc.onended = () => {
             osc.disconnect();
             gain.disconnect();
-        }, (duration + 0.1) * 1000);
+        };
     }
 
+    /**
+     * Create a short noise burst (useful for percussive textures).
+     */
+    playNoise({ duration = 0.05, vol = 0.3, delay = 0 }) {
+        if (this.muted || this.sfxVolume <= 0) return;
+        if (!this.ensureContext()) return;
+
+        const t = this.audioCtx.currentTime + delay;
+        const bufferSize = Math.floor(this.audioCtx.sampleRate * duration);
+        const buffer = this.audioCtx.createBuffer(1, bufferSize, this.audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1);
+        }
+
+        const noise = this.audioCtx.createBufferSource();
+        noise.buffer = buffer;
+
+        const gain = this.audioCtx.createGain();
+        gain.gain.setValueAtTime(vol, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+        // Bandpass to shape the noise
+        const filter = this.audioCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(3000, t);
+        filter.Q.setValueAtTime(1, t);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.sfxGainNode);
+
+        noise.start(t);
+        noise.stop(t + duration + 0.01);
+
+        noise.onended = () => {
+            noise.disconnect();
+            filter.disconnect();
+            gain.disconnect();
+        };
+    }
+
+    // ----- Game SFX -----
+
+    /**
+     * Click / wrench tap — soft pop with slight pitch variation
+     */
     playClick() {
-        // High pitched short beep
-        this.playTone({ freq: 880, type: 'square', duration: 0.05, vol: 0.1 });
+        // Slight random pitch variation so rapid clicks don't sound robotic
+        const variation = 0.95 + Math.random() * 0.1; // 0.95–1.05
+
+        // Soft descending pop (sine avoids the harsh harmonics of square)
+        this.playTone({ freq: 660 * variation, type: 'sine', duration: 0.07, ramp: 330, vol: 0.45 });
+        // Gentle body knock
+        this.playTone({ freq: 180 * variation, type: 'triangle', duration: 0.05, vol: 0.2 });
     }
 
+    /**
+     * Car repaired — satisfying coin / cash register "ka-ching"
+     */
     playCoin() {
-        // High coin sound (two tones)
-        this.playTone({ freq: 1200, type: 'sine', duration: 0.1, vol: 0.3 });
-        setTimeout(() => {
-            this.playTone({ freq: 1800, type: 'sine', duration: 0.2, vol: 0.3 });
-        }, 50);
+        // Bright high ding
+        this.playTone({ freq: 1400, type: 'sine', duration: 0.15, vol: 0.6 });
+        // Octave up sparkle
+        this.playTone({ freq: 2100, type: 'sine', duration: 0.2, vol: 0.4, delay: 0.07 });
+        // Shimmer
+        this.playTone({ freq: 2800, type: 'sine', duration: 0.15, vol: 0.2, delay: 0.12 });
+        // Metallic texture
+        this.playNoise({ duration: 0.04, vol: 0.15 });
     }
 
-    playRepair() {
-        // Mechanical ratchet (low burst)
-        this.playTone({ freq: 100, type: 'sawtooth', duration: 0.08, ramp: 50, vol: 0.2 });
-    }
-
+    /**
+     * Purchase upgrade or hire worker — register "cha-ching"
+     */
     playPurchase() {
-        // Register cha-ching
-        this.playTone({ freq: 600, type: 'square', duration: 0.1, vol: 0.2 });
-        setTimeout(() => {
-            this.playTone({ freq: 1200, type: 'square', duration: 0.3, vol: 0.2 });
-        }, 80);
+        // Register drawer open
+        this.playTone({ freq: 500, type: 'square', duration: 0.08, vol: 0.5 });
+        // Coin hit
+        this.playTone({ freq: 1000, type: 'square', duration: 0.1, vol: 0.5, delay: 0.08 });
+        // High ring
+        this.playTone({ freq: 1500, type: 'sine', duration: 0.25, vol: 0.4, delay: 0.14 });
+        // Mechanical clack
+        this.playNoise({ duration: 0.03, vol: 0.2 });
     }
 
+    /**
+     * Achievement / level up / tier up — victory fanfare
+     */
     playUnlock() {
-        // Victory jingle
-        const now = 0;
-        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
-            setTimeout(() => {
-                this.playTone({ freq, type: 'triangle', duration: 0.2, vol: 0.3 });
-            }, i * 100);
+        // Rising 4-note arpeggio (C5 E5 G5 C6)
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, i) => {
+            this.playTone({ freq, type: 'triangle', duration: 0.18, vol: 0.5, delay: i * 0.09 });
+            // Harmony: quiet octave below
+            this.playTone({ freq: freq / 2, type: 'triangle', duration: 0.15, vol: 0.15, delay: i * 0.09 });
         });
+        // Final note held longer and louder
+        this.playTone({ freq: 1046.50, type: 'sine', duration: 0.4, vol: 0.4, delay: 0.36 });
+        // Sparkle noise
+        this.playNoise({ duration: 0.06, vol: 0.15, delay: 0.36 });
     }
 
+    /**
+     * Error / can't afford — low buzzy rejection
+     */
     playError() {
-        this.playTone({ freq: 150, type: 'sawtooth', duration: 0.2, ramp: 100, vol: 0.2 });
+        this.playTone({ freq: 200, type: 'sawtooth', duration: 0.15, ramp: 120, vol: 0.5 });
+        this.playTone({ freq: 160, type: 'square', duration: 0.15, vol: 0.3, delay: 0.1 });
     }
 }
