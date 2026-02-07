@@ -91,6 +91,7 @@ class WorkerSystem {
         for (const worker of this.state.workers) {
             totalRepair += worker.getRepairContribution(deltaMs);
         }
+        totalRepair *= (this.state.autoRepairMultiplier || 1);
 
         if (totalRepair <= 0) return;
 

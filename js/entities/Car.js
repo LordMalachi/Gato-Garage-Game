@@ -21,6 +21,7 @@ class Car {
         // Current repair state
         this.repairProgress = 0;
         this.createdAt = Date.now();
+        this.contractMeta = null;
 
         // Tier scaling (default to tier 1)
         this.tier = 1;
@@ -106,7 +107,8 @@ class Car {
             id: this.id,
             repairProgress: this.repairProgress,
             createdAt: this.createdAt,
-            tier: this.tier || 1
+            tier: this.tier || 1,
+            contractMeta: this.contractMeta ? { ...this.contractMeta } : null
         };
     }
 
@@ -126,6 +128,7 @@ class Car {
         car.repairProgress = data.repairProgress || 0;
         car.createdAt = data.createdAt || Date.now();
         car.tier = data.tier || 1;
+        car.contractMeta = data.contractMeta ? { ...data.contractMeta } : null;
 
         // Apply tier scaling to match saved tier
         if (car.tier > 1) {

@@ -262,9 +262,9 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 24px;
+    height: 28px;
     background-color: var(--maid-navy-dark);
-    border-top: 2px solid var(--gato-green);
+    border-top: 1px solid rgba(74, 222, 128, 0.45);
     overflow: hidden;
     white-space: nowrap;
     z-index: 100;
@@ -276,8 +276,9 @@
     position: absolute;
     left: 0;
     font-family: 'Press Start 2P', monospace;
-    font-size: 10px;
-    color: var(--gato-green);
-    line-height: 24px;
+    font-size: 11px;
+    color: var(--apron-cream);
+    line-height: 28px;
+    text-shadow: 0 0 4px rgba(74, 222, 128, 0.35);
     will-change: transform;
 }

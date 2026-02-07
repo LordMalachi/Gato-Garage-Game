@@ -11,9 +11,9 @@ class ClickSystem {
 
         // Combo system
         this.comboMultiplier = 1;
-        this.maxCombo = 2.0;
+        this.baseMaxCombo = 2.0;
         this.comboDecayRate = 0.5; // Decay per second
-        this.comboGainPerClick = 0.1;
+        this.baseComboGainPerClick = 0.1;
         this.lastClickTime = 0;
         this.comboTimeout = 1000; // Reset combo after 1 second
 
@@ -54,8 +54,8 @@ class ClickSystem {
         // Update combo
         if (now - this.lastClickTime < this.comboTimeout) {
             this.comboMultiplier = Math.min(
-                this.comboMultiplier + this.comboGainPerClick,
-                this.maxCombo
+                this.comboMultiplier + this.getComboGainPerClick(),
+                this.getMaxCombo()
             );
         } else {
             this.comboMultiplier = 1;
@@ -131,6 +131,24 @@ class ClickSystem {
      */
     getCombo() {
         return this.comboMultiplier;
+    }
+
+    /**
+     * Get max combo considering permanent upgrades
+     * @returns {number} Max combo multiplier
+     */
+    getMaxCombo() {
+        const bonus = this.state.comboMaxBonus || 0;
+        return Math.max(1.5, this.baseMaxCombo + bonus);
+    }
+
+    /**
+     * Get combo gain per click considering permanent upgrades
+     * @returns {number} Combo gain amount
+     */
+    getComboGainPerClick() {
+        const bonus = this.state.comboGainBonus || 0;
+        return Math.max(0.01, this.baseComboGainPerClick + bonus);
     }
 
     /**

@@ -82,6 +82,7 @@ const GameEvents = {
     CURRENCY_CHANGED: 'currency:changed',
     CURRENCY_EARNED: 'currency:earned',
     CURRENCY_SPENT: 'currency:spent',
+    PRESTIGE_CURRENCY_CHANGED: 'prestige:currency:changed',
 
     // Car events
     CAR_QUEUED: 'car:queued',
@@ -92,6 +93,7 @@ const GameEvents = {
     // Upgrade events
     UPGRADE_PURCHASED: 'upgrade:purchased',
     UPGRADE_AVAILABLE: 'upgrade:available',
+    NIP_UPGRADE_PURCHASED: 'nip:upgrade:purchased',
 
     // Worker events
     WORKER_HIRED: 'worker:hired',
@@ -116,5 +118,11 @@ const GameEvents = {
     XP_EARNED: 'progression:xp:earned',
     LEVEL_UP: 'progression:level:up',
     TIER_UP: 'progression:tier:up',
-    CAR_UNLOCKED: 'progression:car:unlocked'
+    CAR_UNLOCKED: 'progression:car:unlocked',
+
+    // Job board events
+    JOB_BOARD_UPDATED: 'job:board:updated',
+    JOB_ACCEPTED: 'job:accepted',
+    JOB_COMPLETED: 'job:completed',
+    JOB_FAILED: 'job:failed'
 };

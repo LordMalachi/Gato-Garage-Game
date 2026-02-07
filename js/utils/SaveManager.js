@@ -135,12 +135,19 @@ class SaveManager {
 
         const totalRepair = autoRepairRate * (effectiveTime / 1000) * offlineEfficiency;
         const carsRepaired = Math.floor(totalRepair / avgRepairCost);
-        const earnings = Math.floor(carsRepaired * avgCarValue * this.state.getCarValueMultiplier() * this.state.incomeMultiplier);
+        const earnings = Math.floor(
+            carsRepaired *
+            avgCarValue *
+            this.state.getCarValueMultiplier() *
+            this.state.incomeMultiplier *
+            this.state.prestigeMultiplier
+        );
 
         // Apply earnings
         if (earnings > 0) {
             this.state.currency += earnings;
             this.state.totalEarned += earnings;
+            this.state.lifetimeEarnings += earnings;
 
             EventBus.emit(GameEvents.OFFLINE_EARNINGS, {
                 time: effectiveTime,

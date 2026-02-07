@@ -9,7 +9,7 @@ class NewsTicker {
         this.container = document.getElementById('news-ticker');
 
         // Scroll speed in pixels per second
-        this.scrollSpeed = 60;
+        this.scrollSpeed = 42;
 
         // Current scroll position (pixels)
         this.scrollX = 0;
@@ -91,10 +91,20 @@ class NewsTicker {
         // Last timestamp for animation
         this.lastTime = 0;
         this.animating = false;
+        this.refreshTimer = null;
+        this.motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+        this.reducedMotion = this.motionQuery.matches;
+
+        this.handleMotionPreferenceChange = this.handleMotionPreferenceChange.bind(this);
+        if (this.motionQuery.addEventListener) {
+            this.motionQuery.addEventListener('change', this.handleMotionPreferenceChange);
+        } else if (this.motionQuery.addListener) {
+            this.motionQuery.addListener(this.handleMotionPreferenceChange);
+        }
 
         if (this.element && this.container) {
             this.refreshFeed();
-            this.startScrolling();
+            this.applyMotionPreference();
         }
     }
 
@@ -136,6 +146,12 @@ class NewsTicker {
         this.containerWidth = this.container.offsetWidth;
         this.contentWidth = this.element.scrollWidth;
 
+        if (this.reducedMotion) {
+            this.scrollX = 0;
+            this.applyPosition();
+            return;
+        }
+
         // Reset scroll to start off-screen right
         this.scrollX = this.containerWidth;
         this.applyPosition();
@@ -150,6 +166,38 @@ class NewsTicker {
         this.lastTime = performance.now();
         this.tick = this.tick.bind(this);
         requestAnimationFrame(this.tick);
+    }
+
+    stopScrolling() {
+        this.animating = false;
+    }
+
+    handleMotionPreferenceChange(event) {
+        this.reducedMotion = event.matches;
+        this.applyMotionPreference();
+    }
+
+    applyMotionPreference() {
+        if (this.reducedMotion) {
+            this.stopScrolling();
+            this.scrollX = 0;
+            this.applyPosition();
+
+            if (this.refreshTimer) {
+                clearInterval(this.refreshTimer);
+            }
+            this.refreshTimer = setInterval(() => {
+                this.refreshFeed();
+            }, 12000);
+            return;
+        }
+
+        if (this.refreshTimer) {
+            clearInterval(this.refreshTimer);
+            this.refreshTimer = null;
+        }
+
+        this.startScrolling();
     }
 
     /**
@@ -179,7 +227,8 @@ class NewsTicker {
      */
     applyPosition() {
         if (!this.element) return;
-        this.element.style.transform = `translate3d(${Math.round(this.scrollX)}px, 0, 0)`;
+        const x = this.reducedMotion ? 0 : Math.round(this.scrollX);
+        this.element.style.transform = `translate3d(${x}px, 0, 0)`;
     }
 
     /**

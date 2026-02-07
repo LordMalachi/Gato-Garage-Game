@@ -16,13 +16,19 @@
 </head>
 
 <body>
+    <a class="skip-link" href="#sidebar">Skip to controls</a>
     <div id="game-container">
         <!-- Main game canvas -->
-        <div id="game-area" class="scanlines">
+        <div id="game-area" class="scanlines" role="main" aria-label="Garage repair bay">
             <canvas id="game-canvas"></canvas>
 
             <!-- Click area overlay for interaction -->
-            <div id="click-area"></div>
+            <div id="click-area" tabindex="0" role="button"
+                aria-label="Repair the current car. Click, tap, or press Enter or Space."
+                aria-describedby="repair-controls-hint"></div>
+            <p id="repair-controls-hint" class="sr-only">
+                Click or tap the car to repair it. Keyboard users can focus this area and press Enter or Space.
+            </p>
 
             <!-- Floating damage numbers container -->
             <div id="floating-numbers"></div>
@@ -34,9 +40,18 @@
         </div>
 
         <!-- UI Sidebar -->
-        <aside id="sidebar">
+        <aside id="sidebar" aria-label="Garage controls">
+            <div id="sidebar-tabs" role="toolbar" aria-label="Mobile panel navigation">
+                <button class="sidebar-tab active" data-panel="garage" aria-pressed="true">Garage</button>
+                <button class="sidebar-tab" data-panel="jobs" aria-pressed="false">Jobs</button>
+                <button class="sidebar-tab" data-panel="tools" aria-pressed="false">Tools</button>
+                <button class="sidebar-tab" data-panel="crew" aria-pressed="false">Crew</button>
+                <button class="sidebar-tab" data-panel="goals" aria-pressed="false">Goals</button>
+                <button class="sidebar-tab" data-panel="menu" aria-pressed="false">Menu</button>
+            </div>
+
             <!-- Stats Panel -->
-            <section id="stats-panel" class="ui-panel">
+            <section id="stats-panel" class="ui-panel tab-panel" data-panel="garage">
                 <h1 class="game-title">GATO GARAGE</h1>
 
                 <!-- Progression Bar -->
@@ -111,7 +126,7 @@
             </section>
 
             <!-- Current Car Info -->
-            <section id="car-panel" class="ui-panel">
+            <section id="car-panel" class="ui-panel tab-panel" data-panel="garage">
                 <h2 class="panel-title">Current Job</h2>
                 <div id="car-info">
                     <div id="car-name">Waiting...</div>
@@ -122,27 +137,43 @@
                 </div>
             </section>
 
+            <!-- Job Board -->
+            <section id="job-board-panel" class="ui-panel tab-panel" data-panel="jobs">
+                <details class="panel-collapsible">
+                    <summary class="panel-title panel-summary">Job Board</summary>
+                    <div id="job-board-summary">Completed 0 | Failed 0</div>
+                    <div id="active-job-contract"></div>
+                    <div id="job-board-list"></div>
+                </details>
+            </section>
+
             <!-- Upgrade Shop -->
-            <section id="shop-panel" class="ui-panel">
-                <h2 class="panel-title">Tools</h2>
-                <div id="upgrades-list"></div>
+            <section id="shop-panel" class="ui-panel tab-panel" data-panel="tools">
+                <details class="panel-collapsible">
+                    <summary class="panel-title panel-summary">Tools</summary>
+                    <div id="upgrades-list"></div>
+                </details>
             </section>
 
             <!-- Workers Panel -->
-            <section id="workers-panel" class="ui-panel">
-                <h2 class="panel-title">Cat-Maids</h2>
-                <div id="workers-list"></div>
+            <section id="workers-panel" class="ui-panel tab-panel" data-panel="crew">
+                <details class="panel-collapsible">
+                    <summary class="panel-title panel-summary">Cat-Maids</summary>
+                    <div id="workers-list"></div>
+                </details>
             </section>
 
             <!-- Achievements -->
-            <section id="achievements-panel" class="ui-panel">
-                <h2 class="panel-title">Achievements</h2>
-                <div id="achievement-summary">0 / 0 unlocked</div>
-                <div id="achievements-list"></div>
+            <section id="achievements-panel" class="ui-panel tab-panel" data-panel="goals">
+                <details class="panel-collapsible">
+                    <summary class="panel-title panel-summary">Achievements</summary>
+                    <div id="achievement-summary">0 / 0 unlocked</div>
+                    <div id="achievements-list"></div>
+                </details>
             </section>
 
             <!-- Menu Buttons -->
-            <section id="menu-panel" class="ui-panel">
+            <section id="menu-panel" class="ui-panel tab-panel" data-panel="menu">
                 <button id="save-btn" class="menu-btn">Save</button>
                 <button id="settings-btn" class="menu-btn">Settings</button>
             </section>
@@ -152,7 +183,7 @@
         <!-- <div id="queue-panel"> ... </div> -->
 
         <!-- Notification Area -->
-        <div id="notifications"></div>
+        <div id="notifications" aria-live="polite" aria-atomic="false"></div>
 
         <!-- Offline Earnings Modal -->
         <div id="offline-modal" class="modal hidden">
@@ -281,6 +312,11 @@
                     <p class="warning-text">You will lose money, upgrades, and garage levels.<br>You keep achievements and
                         Gato Nip.</p>
                 </div>
+                <div class="nip-shop-section">
+                    <h3>Nip Shop</h3>
+                    <p class="nip-shop-balance">Available: <span id="nip-balance">0</span> Nip</p>
+                    <div id="nip-shop-list"></div>
+                </div>
                 <div class="confirm-buttons">
                     <button id="ascend-btn" class="menu-btn danger-btn">Ascend</button>
                     <button id="ascend-cancel-btn" class="menu-btn">Cancel</button>
@@ -298,6 +334,7 @@
     <script src="js/data/workers.js"></script>
     <script src="js/data/cars.js"></script>
     <script src="js/data/achievements.js"></script>
+    <script src="js/data/nipUpgrades.js"></script>
 
     <script src="js/entities/Car.js"></script>
     <script src="js/entities/Worker.js"></script>
@@ -313,6 +350,8 @@
     <script src="js/systems/CarQueueSystem.js"></script>
     <script src="js/systems/AchievementSystem.js"></script>
     <script src="js/systems/PrestigeSystem.js"></script>
+    <script src="js/systems/NipShopSystem.js"></script>
+    <script src="js/systems/JobBoardSystem.js"></script>
 
     <script src="js/rendering/ParticleSystem.js"></script>
     <script src="js/rendering/Renderer.js"></script>
@@ -321,6 +360,7 @@
     <script src="js/ui/ShopUI.js"></script>
     <script src="js/ui/StatsUI.js"></script>
     <script src="js/ui/NewsTicker.js"></script>
+    <script src="js/ui/JobBoardUI.js"></script>
 
     <script src="js/utils/SaveManager.js"></script>
     <script src="js/audio/AudioManager.js"></script>
