@@ -244,10 +244,10 @@ class Renderer {
      */
     drawParticles(system) {
         const ctx = this.bufferCtx;
+        ctx.save();
 
         for (const p of system.particles) {
             const lifePercent = p.life / p.maxLife;
-            // Fade out
             ctx.globalAlpha = Math.min(1, lifePercent * 2);
             ctx.fillStyle = p.color;
 
@@ -257,9 +257,9 @@ class Renderer {
                 ctx.font = `${p.size}px "Press Start 2P"`;
                 ctx.fillText(p.text, Math.floor(p.x), Math.floor(p.y));
             }
-
-            ctx.globalAlpha = 1.0;
         }
+
+        ctx.restore();
     }
 
     /**
@@ -459,9 +459,7 @@ class Renderer {
         }
 
         // Progress bar above car
-        const p = car.getProgressPercent();
-        // if (Math.random() < 0.05) console.log('Render Car:', car.id, 'Progress:', p, 'Raw:', car.repairProgress, '/', car.repairCost);
-        this.drawProgressBar(x + 10, y - 25, carWidth - 20, 14, p);
+        this.drawProgressBar(x + 10, y - 25, carWidth - 20, 14, car.getProgressPercent());
 
         // Rarity badge
         this.drawRarityBadge(x + carWidth - 20, y + 10, car.rarity);
@@ -567,9 +565,6 @@ class Renderer {
 
         // Percentage text
         const percent = Math.floor(progress * 100);
-        // DEBUG: Logic to chase down progress bar issue
-        // if (Math.random() < 0.01) console.log('Renderer Progress:', progress, 'Width:', width, 'Fill:', Math.floor((width - 4) * progress));
-
         this.drawText(`${percent}%`, x + width / 2 - 12, y + height - 3, this.colors.cream, 6);
     }
 

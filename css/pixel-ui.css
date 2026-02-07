@@ -273,20 +273,11 @@
 
 #news-content {
     display: inline-block;
-    padding-left: 100%;
-    animation: ticker 30s linear infinite;
+    position: absolute;
+    left: 0;
     font-family: 'Press Start 2P', monospace;
     font-size: 10px;
     color: var(--gato-green);
     line-height: 24px;
-}
-
-@keyframes ticker {
-    0% {
-        transform: translate3d(0, 0, 0);
-    }
-
-    100% {
-        transform: translate3d(-100%, 0, 0);
-    }
+    will-change: transform;
 }

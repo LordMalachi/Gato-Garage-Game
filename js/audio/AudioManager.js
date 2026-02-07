@@ -59,9 +59,8 @@ class AudioManager {
      */
     start() {
         this.started = true;
+        this.initAudioContext();
         this.tryPlayMusic();
-        // Context will be initialized on user interaction via unlock listeners
-        // or immediately if already allowed.
     }
 
     /**
@@ -162,14 +161,16 @@ class AudioManager {
             this.detachUnlockListeners();
         };
 
-        const events = ['click', 'touchstart', 'keydown', 'mousedown'];
-        events.forEach(e => document.addEventListener(e, unlock, { once: true, capture: true }));
+        this.unlockEvents = ['click', 'touchstart', 'keydown', 'mousedown'];
+        this.unlockEvents.forEach(e => document.addEventListener(e, unlock, { capture: true }));
         this.unlockHandler = unlock;
     }
 
     detachUnlockListeners() {
+        if (!this.unlockHandler) return;
+        this.unlockEvents.forEach(e => document.removeEventListener(e, this.unlockHandler, { capture: true }));
         this.unlockListenersAttached = false;
-        // Listeners are {once: true} so they remove themselves, but we clear flag
+        this.unlockHandler = null;
     }
 
     applyMusicVolume() {
@@ -207,7 +208,13 @@ class AudioManager {
      * Play a sound using an oscillator
      */
     playTone({ freq = 440, type = 'sine', duration = 0.1, ramp = null, vol = 1.0 }) {
-        if (this.muted || !this.audioCtx || this.sfxVolume <= 0) return;
+        if (this.muted || this.sfxVolume <= 0) return;
+
+        // Lazy-init AudioContext on first SFX play
+        if (!this.audioCtx) {
+            this.initAudioContext();
+            if (!this.audioCtx) return;
+        }
 
         // Improve latency handling
         if (this.audioCtx.state === 'suspended') {

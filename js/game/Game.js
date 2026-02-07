@@ -32,6 +32,9 @@ class Game {
         // Save manager
         this.saveManager = new SaveManager(this.state);
 
+        // Prestige system
+        this.prestigeSystem = new PrestigeSystem(this.state, this.audioManager);
+
         // Audio events
         this.setupAudioEvents();
 
@@ -79,8 +82,6 @@ class Game {
         EventBus.on(GameEvents.CAR_REPAIRED, () => {
             // Center of screen/car for cash
             this.particleSystem.spawnCashParticles(160, 130, 100);
-            // Trigger visual flash
-            this.renderer.triggerTransition();
         });
         EventBus.on(GameEvents.ACHIEVEMENT_UNLOCKED, (data) => {
             this.particleSystem.spawnConfetti(320, 288);

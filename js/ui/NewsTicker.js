@@ -1,6 +1,6 @@
 /**
- * NewsTicker - Manages the scrolling text at the bottom
- * distinctive feature of the "Polish" update
+ * NewsTicker - Scrolling news bar at the bottom of the game area
+ * Uses JS-driven positioning for consistent scroll speed regardless of content length
  */
 class NewsTicker {
     constructor(state) {
@@ -8,48 +8,101 @@ class NewsTicker {
         this.element = document.getElementById('news-content');
         this.container = document.getElementById('news-ticker');
 
-        // Static headlines
+        // Scroll speed in pixels per second
+        this.scrollSpeed = 60;
+
+        // Current scroll position (pixels)
+        this.scrollX = 0;
+
+        // Cached widths
+        this.contentWidth = 0;
+        this.containerWidth = 0;
+
+        // Static headlines pool
         this.headlines = [
-            "Local cat opens garage",
-            "Catnip stocks soar",
-            "Study: Cars run smoother when purred at",
-            "50% chance of sunbeams",
-            "Red dots - catchable?",
-            "New 'Auto-Petter 3000' released",
-            "Dog chased away by manager",
-            "Invest in cardboard boxes",
-            "Purring lowers stress",
-            "Gato Garage wins napping championship",
-            "Ancient Egyptians were right",
-            "Weird noise? Meow back",
-            "5 stars, would get scratched again",
-            "Hiring belly rubbers",
-            "Mayor Whiskers promises treats"
+            // Garage life
+            "Local cat opens garage, immediately naps on hood",
+            "Cheese seen arguing with stubborn lug nut",
+            "Garage cat caught sleeping in engine bay again",
+            "Oil change completed in record 47 naps",
+            "Mystery scratch found on every car this week",
+            "Customer's car returned with bonus hairballs",
+            "Suspicious purring heard coming from the engine",
+            "Mechanic claims wrench 'ran away on its own'",
+            "Break room fridge now 90% tuna cans",
+            "Shop vac defeated by single hairball, story at 11",
+            "Garage inspection passed, all 9 lives intact",
+            "Lost keys found in usual spot: under the cat",
+
+            // Economy & business
+            "Catnip stocks soar to all-time high",
+            "Cardboard box futures looking strong",
+            "Yarn Ball Index up 12% this quarter",
+            "Local tuna market destabilized by bulk buyer",
+            "Economists warn of treat inflation",
+            "String theory proves profitable investment",
+            "Laser pointer industry sees dot-com boom",
+
+            // Science & weather
+            "Study: Cars run 40% smoother when purred at",
+            "Scientists confirm: the red dot cannot be caught",
+            "Forecast: 80% chance of sunbeams, 100% of naps",
+            "Researchers discover optimal cardboard box size",
+            "Breaking: gravity still works, glass still falls",
+            "New study links chin scratches to productivity",
+            "Weather: partly sunny with scattered zoomies",
+
+            // Community
+            "Mayor Whiskers promises free treats for all",
+            "Dog chased from premises, perimeter secured",
+            "Annual yarn ball tournament dates announced",
+            "Local bird population 'concerned' about new garage",
+            "Neighborhood watch: suspicious cucumber reported",
+            "Town council approves new napping ordinance",
+            "Missing sock mystery enters third week",
+            "Community fish fry a huge success, literally",
+
+            // Hiring & HR
+            "Now hiring: professional belly rub technician",
+            "Employee of the month: everyone (it's complicated)",
+            "New hire orientation: where NOT to sharpen claws",
+            "HR reminds staff: 3am zoomies are not overtime",
+            "Benefits package now includes premium nap spots",
+
+            // Reviews & testimonials
+            "5 stars - 'Would get gently scratched again'",
+            "Review: 'They fixed my car and judged me. 10/10'",
+            "Customer: 'The cat stared at me for 20 minutes. Best service ever'",
+            "'My car purrs now. Is that normal?' asks customer",
+
+            // Cat philosophy
+            "If it fits, it ships. If it sits, it stays",
+            "Ancient Egyptians were right all along",
+            "Weird noise? Best practice: meow back",
+            "Today's wisdom: knock it off the table",
+            "Reminder: everything is a bed if you believe",
+            "The box is always better than what's inside",
+            "You can't spell 'catastrophe' without 'cat'"
         ];
 
-        // Dynamic event queue
+        // Dynamic event queue (game events get priority)
         this.newsQueue = [];
-        this.currentFeed = "";
 
-        if (this.element) {
-            // Fill initial feed
+        // Last timestamp for animation
+        this.lastTime = 0;
+        this.animating = false;
+
+        if (this.element && this.container) {
             this.refreshFeed();
-
-            // Listen for animation repeat to refresh items
-            this.element.addEventListener('animationiteration', () => {
-                this.refreshFeed();
-            });
+            this.startScrolling();
         }
     }
 
     /**
-     * Add urgent news (prepends to queue)
+     * Add urgent news from game events
      */
     addNews(text) {
-        this.newsQueue.unshift(text); // Add to front
-        // Force refresh if critical? Nah, let it scroll naturally or it jumps
-        // But we DO want to see it soon.
-        // For now, it will appear in next batch.
+        this.newsQueue.push(text);
     }
 
     /**
@@ -60,35 +113,99 @@ class NewsTicker {
 
         let feedItems = [];
 
-        // 1. Add any queued important news
+        // 1. Drain any queued game events
         while (this.newsQueue.length > 0) {
-            feedItems.push(`★ ${this.newsQueue.shift()} ★`);
+            feedItems.push(`\u2605 ${this.newsQueue.shift()} \u2605`);
         }
 
-        // 2. Add contextual news
+        // 2. Add a contextual headline based on game state
         if (this.state) {
             feedItems.push(this.getContextualNews());
         }
 
-        // 3. Fill rest with random headlines
-        // We want a long string to fill ~30s of scrolling
-        for (let i = 0; i < 5; i++) {
-            const randomHeadline = this.headlines[Math.floor(Math.random() * this.headlines.length)];
-            feedItems.push(randomHeadline);
+        // 3. Pick random unique headlines to fill the rest
+        const shuffled = this.shuffleArray([...this.headlines]);
+        const count = Math.max(6, 8 - feedItems.length);
+        for (let i = 0; i < count && i < shuffled.length; i++) {
+            feedItems.push(shuffled[i]);
         }
 
-        // Join with separators
         this.element.textContent = feedItems.join("   +++   ");
+
+        // Recalculate widths after content change
+        this.containerWidth = this.container.offsetWidth;
+        this.contentWidth = this.element.scrollWidth;
+
+        // Reset scroll to start off-screen right
+        this.scrollX = this.containerWidth;
+        this.applyPosition();
+    }
+
+    /**
+     * Start the scroll animation loop
+     */
+    startScrolling() {
+        if (this.animating) return;
+        this.animating = true;
+        this.lastTime = performance.now();
+        this.tick = this.tick.bind(this);
+        requestAnimationFrame(this.tick);
+    }
+
+    /**
+     * Animation frame callback
+     */
+    tick(now) {
+        if (!this.animating) return;
+
+        const dt = (now - this.lastTime) / 1000;
+        this.lastTime = now;
+
+        // Move left
+        this.scrollX -= this.scrollSpeed * dt;
+
+        // If the entire text has scrolled past the left edge, refresh and reset
+        if (this.scrollX < -this.contentWidth) {
+            this.refreshFeed();
+        } else {
+            this.applyPosition();
+        }
+
+        requestAnimationFrame(this.tick);
+    }
+
+    /**
+     * Apply current scroll position to the element
+     */
+    applyPosition() {
+        if (!this.element) return;
+        this.element.style.transform = `translate3d(${Math.round(this.scrollX)}px, 0, 0)`;
     }
 
     /**
      * Generate news based on current game state
      */
     getContextualNews() {
-        if (this.state.prestigeCurrency > 0) return "Garage looking distinctively timeline-shifted";
-        if (this.state.currency > 1000000) return "Owner featured in 'Richest Cats'";
-        if (this.state.garageLevel > 5) return "Garage expanding rapidly";
-        if (this.state.totalClicks > 5000) return "Click rates stabilizing";
-        return "Garage running smoothly";
+        const s = this.state;
+        if (s.prestigeCurrency > 0) return "Timeline anomaly detected near garage";
+        if (s.currency > 1000000) return "Garage owner featured in 'Richest Cats Monthly'";
+        if (s.workers && s.workers.length > 5) return "Garage workforce reaches 'adorable' levels";
+        if (s.garageLevel > 10) return "Garage empire continues to expand";
+        if (s.garageLevel > 5) return "Garage upgrading to double-wide napping area";
+        if (s.carsRepaired > 100) return "100+ cars fixed! Mice considering unionizing";
+        if (s.totalClicks > 5000) return "Click rates stabilizing, paws holding up";
+        if (s.carsRepaired > 10) return "Business is booming, tuna reserves holding";
+        return "It's a beautiful day at the garage";
+    }
+
+    /**
+     * Fisher-Yates shuffle
+     */
+    shuffleArray(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
     }
 }

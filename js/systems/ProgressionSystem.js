@@ -116,7 +116,7 @@ class ProgressionSystem {
     calculateLevelFromXP(xp) {
         const table = ProgressionSystem.XP_TABLE;
 
-        // Binary search for efficiency
+        // Binary search: find highest index where table[index] <= xp
         let left = 0;
         let right = table.length - 1;
 
@@ -129,26 +129,28 @@ class ProgressionSystem {
             }
         }
 
-        return Math.max(1, left);
+        // Table index 0 = level 1, index 1 = level 2, etc.
+        return left + 1;
     }
 
     /**
-     * Get XP required to reach a specific level
-     * @param {number} level - Target level
+     * Get cumulative XP required to reach a specific level
+     * Level 1 = 0 XP (table[0]), Level 2 = 100 XP (table[1]), etc.
+     * @param {number} level - Target level (1-based)
      * @returns {number} Cumulative XP required
      */
     getXPForLevel(level) {
         if (level <= 1) return 0;
-        if (level > ProgressionSystem.XP_TABLE.length) {
+        const index = level - 1;
+        if (index >= ProgressionSystem.XP_TABLE.length) {
             // Extrapolate for very high levels
-            const lastKnownLevel = ProgressionSystem.XP_TABLE.length;
-            const lastKnownXP = ProgressionSystem.XP_TABLE[lastKnownLevel - 1];
-            // Simple linear extrapolation for safety (or continue exp)
-            return lastKnownXP + (level - lastKnownLevel) * 10000;
+            const lastIndex = ProgressionSystem.XP_TABLE.length - 1;
+            const lastKnownXP = ProgressionSystem.XP_TABLE[lastIndex];
+            const extraLevels = index - lastIndex;
+            const extraXP = Math.floor(100 * Math.pow(1.15, lastIndex) * extraLevels);
+            return lastKnownXP + extraXP;
         }
-        // Level 1 is index 0 (0 XP)
-        // Level 2 is index 1 (100 XP)
-        return ProgressionSystem.XP_TABLE[level - 1];
+        return ProgressionSystem.XP_TABLE[index];
     }
 
     /**
