@@ -56,6 +56,11 @@ class GameState {
         this.garageLevel = 1;
         this.currentTier = 1;
         this.unlockedCars = ['hatchback']; // Start with only starter car
+
+        // Prestige
+        this.prestigeCurrency = 0; // "Gato Nip"
+        this.lifetimeEarnings = 0; // Total earned across all runs
+        this.prestigeMultiplier = 1; // Multiplier from prestige
     }
 
     /**
@@ -64,9 +69,10 @@ class GameState {
      * @returns {number} Actual amount added (after multipliers)
      */
     addCurrency(amount) {
-        const adjustedAmount = Math.floor(amount * this.incomeMultiplier);
+        const adjustedAmount = Math.floor(amount * this.incomeMultiplier * this.prestigeMultiplier);
         this.currency += adjustedAmount;
         this.totalEarned += adjustedAmount;
+        this.lifetimeEarnings += adjustedAmount;
         EventBus.emit(GameEvents.CURRENCY_CHANGED, this.currency);
         EventBus.emit(GameEvents.CURRENCY_EARNED, adjustedAmount);
         return adjustedAmount;
@@ -191,7 +197,11 @@ class GameState {
             garageXP: this.garageXP,
             garageLevel: this.garageLevel,
             currentTier: this.currentTier,
-            unlockedCars: [...this.unlockedCars]
+            unlockedCars: [...this.unlockedCars],
+
+            // Prestige
+            prestigeCurrency: this.prestigeCurrency,
+            lifetimeEarnings: this.lifetimeEarnings
         };
     }
 
@@ -238,6 +248,10 @@ class GameState {
         this.currentTier = data.currentTier || 1;
         this.unlockedCars = data.unlockedCars || ['hatchback'];
 
+        // Prestige
+        this.prestigeCurrency = data.prestigeCurrency || 0;
+        this.lifetimeEarnings = data.lifetimeEarnings || this.totalEarned; // Fallback for old saves
+
         // Recalculate derived values
         this.recalculateStats();
     }
@@ -250,6 +264,9 @@ class GameState {
         this.clickPower = 1;
         this.carValueBonus = 0;
         this.incomeMultiplier = 1;
+
+        // Calculate prestige multiplier (e.g., 2% per nip)
+        this.prestigeMultiplier = 1 + (this.prestigeCurrency * 0.05);
 
         // Apply all upgrade effects
         for (const [upgradeId, level] of Object.entries(this.upgrades)) {

@@ -32,7 +32,10 @@ class ProgressionSystem {
      * Returns cumulative XP required to reach each level
      */
     static generateXPTable() {
-        const table = [0]; // Level 1 starts at 0 XP
+        // Level 1 starts at 0 XP
+        // Level 2 starts at 100 XP
+        // Level N starts at sum(prev)
+        const table = [0];
         let cumulative = 0;
 
         for (let level = 1; level <= 100; level++) {
@@ -113,7 +116,7 @@ class ProgressionSystem {
     calculateLevelFromXP(xp) {
         const table = ProgressionSystem.XP_TABLE;
 
-        // Binary search for efficiency
+        // Binary search: find highest index where table[index] <= xp
         let left = 0;
         let right = table.length - 1;
 
@@ -126,25 +129,28 @@ class ProgressionSystem {
             }
         }
 
-        return Math.max(1, left);
+        // Table index 0 = level 1, index 1 = level 2, etc.
+        return left + 1;
     }
 
     /**
-     * Get XP required to reach a specific level
-     * @param {number} level - Target level
+     * Get cumulative XP required to reach a specific level
+     * Level 1 = 0 XP (table[0]), Level 2 = 100 XP (table[1]), etc.
+     * @param {number} level - Target level (1-based)
      * @returns {number} Cumulative XP required
      */
     getXPForLevel(level) {
-        if (level <= 0) return 0;
-        if (level >= ProgressionSystem.XP_TABLE.length) {
+        if (level <= 1) return 0;
+        const index = level - 1;
+        if (index >= ProgressionSystem.XP_TABLE.length) {
             // Extrapolate for very high levels
-            const lastKnownLevel = ProgressionSystem.XP_TABLE.length - 1;
-            const lastKnownXP = ProgressionSystem.XP_TABLE[lastKnownLevel];
-            const extraLevels = level - lastKnownLevel;
-            const extraXP = Math.floor(100 * Math.pow(1.15, lastKnownLevel) * extraLevels);
+            const lastIndex = ProgressionSystem.XP_TABLE.length - 1;
+            const lastKnownXP = ProgressionSystem.XP_TABLE[lastIndex];
+            const extraLevels = index - lastIndex;
+            const extraXP = Math.floor(100 * Math.pow(1.15, lastIndex) * extraLevels);
             return lastKnownXP + extraXP;
         }
-        return ProgressionSystem.XP_TABLE[level];
+        return ProgressionSystem.XP_TABLE[index];
     }
 
     /**

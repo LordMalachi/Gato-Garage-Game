@@ -87,6 +87,19 @@ class Renderer {
     }
 
     /**
+     * Trigger the car fixed transition effect
+     */
+    triggerTransition() {
+        this.transitionEffect.active = true;
+        this.transitionEffect.startTime = this.time;
+        // Standard position for car on lift
+        this.transitionEffect.x = 80;
+        this.transitionEffect.y = 130;
+        this.transitionEffect.width = 140;
+        this.transitionEffect.height = 140;
+    }
+
+    /**
      * Setup canvas resize handling
      */
     setupResize() {
@@ -211,6 +224,11 @@ class Renderer {
         // Draw queue display at bottom
         this.drawCarQueue(state.carQueue);
 
+        // Draw particles (on top of everything)
+        if (state.particleSystem) {
+            this.drawParticles(state.particleSystem);
+        }
+
         // Scale buffer to display canvas with nearest-neighbor
         this.ctx.drawImage(
             this.buffer,
@@ -218,6 +236,30 @@ class Renderer {
             this.canvas.width,
             this.canvas.height
         );
+    }
+
+    /**
+     * Draw particles from system
+     * @param {ParticleSystem} system 
+     */
+    drawParticles(system) {
+        const ctx = this.bufferCtx;
+        ctx.save();
+
+        for (const p of system.particles) {
+            const lifePercent = p.life / p.maxLife;
+            ctx.globalAlpha = Math.min(1, lifePercent * 2);
+            ctx.fillStyle = p.color;
+
+            if (p.type === 'square') {
+                ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.size, p.size);
+            } else if (p.type === 'text') {
+                ctx.font = `${p.size}px "Press Start 2P"`;
+                ctx.fillText(p.text, Math.floor(p.x), Math.floor(p.y));
+            }
+        }
+
+        ctx.restore();
     }
 
     /**
@@ -576,8 +618,9 @@ class Renderer {
         }
 
         const ctx = this.bufferCtx;
-        const centerX = effect.x + effect.width / 2;
-        const centerY = effect.y + effect.height / 2;
+        // Use last known position or default center
+        const centerX = (effect.x !== undefined ? effect.x : 80) + (effect.width !== undefined ? effect.width : 140) / 2;
+        const centerY = (effect.y !== undefined ? effect.y : 130) + (effect.height !== undefined ? effect.height : 140) / 2;
 
         // Phase 1: White flash (0-30%)
         if (progress < 0.3) {
