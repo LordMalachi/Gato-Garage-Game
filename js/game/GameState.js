@@ -26,9 +26,16 @@ class GameState {
         // Multipliers and bonuses
         this.carValueBonus = 0;      // Additive bonus to car value (%)
         this.incomeMultiplier = 1;   // Multiplicative bonus to all income
+        this.clickPowerMultiplier = 1; // Multiplicative click bonus from Nip upgrades
+        this.autoRepairMultiplier = 1; // Multiplicative worker bonus from Nip upgrades
+        this.queueSpawnMultiplier = 1; // Multiplicative spawn interval scaler (<1 faster)
+        this.xpMultiplier = 1;         // Multiplicative XP bonus
+        this.comboMaxBonus = 0;        // Additive max combo bonus
+        this.comboGainBonus = 0;       // Additive combo gain bonus per click
 
         // Upgrades (id -> level)
         this.upgrades = {};
+        this.nipUpgrades = {};
 
         // Achievements (id -> unlock timestamp)
         this.achievements = {};
@@ -42,6 +49,10 @@ class GameState {
         this.carQueue = []; // Array of Car instances
         this.currentCarStartTime = null;
         this.lastCarRepairedAt = 0;
+        this.jobContracts = []; // Array of job board contracts
+        this.activeJobContract = null; // Current accepted contract
+        this.contractsCompleted = 0;
+        this.contractsFailed = 0;
 
         // Auto-repair rate (calculated from workers)
         this.autoRepairRate = 0;
@@ -59,6 +70,7 @@ class GameState {
 
         // Prestige
         this.prestigeCurrency = 0; // "Gato Nip"
+        this.totalPrestigeEarned = 0; // Lifetime Nip earned (spent + unspent)
         this.lifetimeEarnings = 0; // Total earned across all runs
         this.prestigeMultiplier = 1; // Multiplier from prestige
     }
@@ -95,6 +107,20 @@ class GameState {
     }
 
     /**
+     * Spend prestige currency
+     * @param {number} amount - Nip to spend
+     * @returns {boolean} True if successful
+     */
+    spendPrestigeCurrency(amount) {
+        if (this.prestigeCurrency >= amount) {
+            this.prestigeCurrency -= amount;
+            EventBus.emit(GameEvents.PRESTIGE_CURRENCY_CHANGED, this.prestigeCurrency);
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Check if player can afford an amount
      * @param {number} amount - Amount to check
      * @returns {boolean} True if affordable
@@ -116,10 +142,11 @@ class GameState {
      * @returns {number} Total repair per second
      */
     calculateAutoRepairRate() {
-        this.autoRepairRate = this.workers.reduce(
+        const baseRate = this.workers.reduce(
             (total, worker) => total + worker.repairRate,
             0
         );
+        this.autoRepairRate = baseRate * this.autoRepairMultiplier;
         return this.autoRepairRate;
     }
 
@@ -150,6 +177,24 @@ class GameState {
     }
 
     /**
+     * Get Nip upgrade level
+     * @param {string} upgradeId - Nip upgrade ID
+     * @returns {number} Level
+     */
+    getNipUpgradeLevel(upgradeId) {
+        return this.nipUpgrades[upgradeId] || 0;
+    }
+
+    /**
+     * Set Nip upgrade level
+     * @param {string} upgradeId - Nip upgrade ID
+     * @param {number} level - New level
+     */
+    setNipUpgradeLevel(upgradeId, level) {
+        this.nipUpgrades[upgradeId] = level;
+    }
+
+    /**
      * Get count of a worker type owned
      * @param {string} workerId - Worker ID
      * @returns {number} Count owned
@@ -177,6 +222,7 @@ class GameState {
 
             // Upgrades
             upgrades: { ...this.upgrades },
+            nipUpgrades: { ...this.nipUpgrades },
 
             // Achievements
             achievements: { ...this.achievements },
@@ -188,6 +234,10 @@ class GameState {
             // Current car and queue
             currentCar: this.currentCar ? this.currentCar.serialize() : null,
             carQueue: this.carQueue.map(c => c.serialize()),
+            jobContracts: [...this.jobContracts],
+            activeJobContract: this.activeJobContract ? { ...this.activeJobContract } : null,
+            contractsCompleted: this.contractsCompleted,
+            contractsFailed: this.contractsFailed,
 
             // Time
             lastSaveTime: Date.now(),
@@ -201,6 +251,7 @@ class GameState {
 
             // Prestige
             prestigeCurrency: this.prestigeCurrency,
+            totalPrestigeEarned: this.totalPrestigeEarned,
             lifetimeEarnings: this.lifetimeEarnings
         };
     }
@@ -223,6 +274,7 @@ class GameState {
 
         // Upgrades
         this.upgrades = data.upgrades || {};
+        this.nipUpgrades = data.nipUpgrades || {};
 
         // Achievements
         this.achievements = data.achievements || {};
@@ -236,6 +288,10 @@ class GameState {
         this.carQueue = (data.carQueue || []).map(c => Car.deserialize(c));
         this.currentCarStartTime = this.currentCar ? Date.now() : null;
         this.lastCarRepairedAt = 0;
+        this.jobContracts = Array.isArray(data.jobContracts) ? [...data.jobContracts] : [];
+        this.activeJobContract = data.activeJobContract ? { ...data.activeJobContract } : null;
+        this.contractsCompleted = data.contractsCompleted || 0;
+        this.contractsFailed = data.contractsFailed || 0;
 
         // Time
         this.lastSaveTime = data.lastSaveTime || Date.now();
@@ -250,6 +306,7 @@ class GameState {
 
         // Prestige
         this.prestigeCurrency = data.prestigeCurrency || 0;
+        this.totalPrestigeEarned = data.totalPrestigeEarned || this.prestigeCurrency;
         this.lifetimeEarnings = data.lifetimeEarnings || this.totalEarned; // Fallback for old saves
 
         // Recalculate derived values
@@ -264,9 +321,15 @@ class GameState {
         this.clickPower = 1;
         this.carValueBonus = 0;
         this.incomeMultiplier = 1;
+        this.clickPowerMultiplier = 1;
+        this.autoRepairMultiplier = 1;
+        this.queueSpawnMultiplier = 1;
+        this.xpMultiplier = 1;
+        this.comboMaxBonus = 0;
+        this.comboGainBonus = 0;
 
-        // Calculate prestige multiplier (e.g., 2% per nip)
-        this.prestigeMultiplier = 1 + (this.prestigeCurrency * 0.05);
+        // Calculate prestige multiplier from lifetime Nip earned
+        this.prestigeMultiplier = 1 + (this.totalPrestigeEarned * 0.05);
 
         // Apply all upgrade effects
         for (const [upgradeId, level] of Object.entries(this.upgrades)) {
@@ -277,6 +340,18 @@ class GameState {
                 this.applyUpgradeEffect(upgradeDef.effect);
             }
         }
+
+        // Apply Nip upgrade effects
+        for (const [upgradeId, level] of Object.entries(this.nipUpgrades)) {
+            const upgradeDef = NipUpgradeData[upgradeId];
+            if (!upgradeDef) continue;
+
+            for (let i = 0; i < level; i++) {
+                this.applyNipUpgradeEffect(upgradeDef.effect);
+            }
+        }
+
+        this.clickPower = Math.max(1, Math.floor(this.clickPower * this.clickPowerMultiplier));
 
         // Calculate auto-repair rate
         this.calculateAutoRepairRate();
@@ -296,6 +371,36 @@ class GameState {
                 break;
             case 'incomeMultiplier':
                 this.incomeMultiplier += effect.value;
+                break;
+        }
+    }
+
+    /**
+     * Apply a single Nip upgrade effect
+     * @param {Object} effect - Effect definition
+     */
+    applyNipUpgradeEffect(effect) {
+        switch (effect.type) {
+            case 'clickPowerMultiplier':
+                this.clickPowerMultiplier += effect.value;
+                break;
+            case 'autoRepairMultiplier':
+                this.autoRepairMultiplier += effect.value;
+                break;
+            case 'carValueBonus':
+                this.carValueBonus += effect.value;
+                break;
+            case 'comboMaxBonus':
+                this.comboMaxBonus += effect.value;
+                break;
+            case 'comboGainBonus':
+                this.comboGainBonus += effect.value;
+                break;
+            case 'queueSpawnReduction':
+                this.queueSpawnMultiplier *= Math.max(0.4, 1 - effect.value);
+                break;
+            case 'xpMultiplier':
+                this.xpMultiplier += effect.value;
                 break;
         }
     }

@@ -51,7 +51,9 @@ class UIManager {
         EventBus.on(GameEvents.ACHIEVEMENT_UNLOCKED, (data) => {
             this.showNotification(`Achievement: ${data.achievement.name}`);
         });
-        EventBus.on(GameEvents.CLICK_PERFORMED, (data) => this.updateCombo(data.combo));
+        EventBus.on(GameEvents.CLICK_PERFORMED, (data) => {
+            this.updateCombo(data.combo, 2 + (this.state.comboMaxBonus || 0));
+        });
 
         // Progression events
         EventBus.on(GameEvents.XP_EARNED, (data) => this.showFloatingXP(data.amount));
@@ -213,13 +215,14 @@ class UIManager {
      * Update combo HUD state
      * @param {number} combo - Current combo multiplier
      */
-    updateCombo(combo) {
+    updateCombo(combo, maxCombo = 2) {
         if (this.elements.comboValue) {
             this.elements.comboValue.textContent = `x${combo.toFixed(1)}`;
         }
 
         if (this.elements.comboBar) {
-            const percent = Math.min(100, Math.max(0, ((combo - 1) / 1) * 100));
+            const range = Math.max(0.1, maxCombo - 1);
+            const percent = Math.min(100, Math.max(0, ((combo - 1) / range) * 100));
             this.elements.comboBar.style.width = `${percent}%`;
         }
     }
@@ -313,7 +316,7 @@ class UIManager {
         this.updateAutoRate(this.state.autoRepairRate);
         this.updateCurrentCar(this.state.currentCar);
         this.updateCarQueue(this.state.carQueue);
-        this.updateCombo(1);
+        this.updateCombo(1, 2 + (this.state.comboMaxBonus || 0));
     }
 
     /**

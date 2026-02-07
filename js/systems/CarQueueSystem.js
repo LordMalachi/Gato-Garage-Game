@@ -14,7 +14,7 @@ class CarQueueSystem {
         // Configuration
         this.maxQueueSize = 5;
         this.baseSpawnInterval = 8000; // 8 seconds base
-        this.minSpawnInterval = 2000;  // Minimum 2 seconds
+        this.minSpawnInterval = 1000;  // Minimum 1 second
 
         // Timing
         this.spawnTimer = 0;
@@ -52,7 +52,8 @@ class CarQueueSystem {
         // Spawn faster with more workers (up to 75% reduction)
         const workerBonus = Math.min(this.state.workers.length * 0.05, 0.75);
         const interval = this.baseSpawnInterval * (1 - workerBonus);
-        return Math.max(interval, this.minSpawnInterval);
+        const adjusted = interval * (this.state.queueSpawnMultiplier || 1);
+        return Math.max(adjusted, this.minSpawnInterval);
     }
 
     /**

@@ -9,6 +9,7 @@ class Game {
 
         // Progression system (before other systems that depend on it)
         this.progressionSystem = new ProgressionSystem(this.state);
+        this.nipShopSystem = new NipShopSystem(this.state);
 
         // Systems
         this.clickSystem = new ClickSystem(this.state);
@@ -16,6 +17,7 @@ class Game {
         this.workerSystem = new WorkerSystem(this.state);
         this.carQueueSystem = new CarQueueSystem(this.state, this.progressionSystem);
         this.achievementSystem = new AchievementSystem(this.state);
+        this.jobBoardSystem = new JobBoardSystem(this.state, this.progressionSystem);
 
         // Initialize repair completion service
         RepairCompletionService.init(this.state, this.progressionSystem);
@@ -28,6 +30,7 @@ class Game {
         this.shopUI = new ShopUI(this.upgradeSystem, this.workerSystem);
         this.statsUI = new StatsUI(this.state, this.clickSystem, this.workerSystem);
         this.newsTicker = new NewsTicker(this.state);
+        this.jobBoardUI = new JobBoardUI(this.jobBoardSystem, this.state);
 
         // Save manager
         this.saveManager = new SaveManager(this.state);
@@ -54,6 +57,13 @@ class Game {
         this.confirmCallback = null;
         this.startModal = null;
         this.runtimeStarted = false;
+        this.sidebarTabs = [];
+        this.sidebarPanels = [];
+        this.activeMobilePanel = 'garage';
+        this.mobileSidebarQuery = null;
+        this.collapsiblePanels = [];
+        this.sidebarPanelState = {};
+        this.sidebarPanelStorageKey = 'gato-garage:sidebar-panels';
 
         // Track car changes for UI sync
         this.lastCarId = null;
@@ -61,6 +71,9 @@ class Game {
         // Setup
         this.setupClickHandler();
         this.setupMenuButtons();
+        this.setupSidebarTabs();
+        this.setupPanelCollapsibles();
+        this.setupKeyboardShortcuts();
         this.setupSettingsModal();
         this.setupStartModal();
     }
@@ -70,6 +83,7 @@ class Game {
         EventBus.on(GameEvents.CAR_REPAIRED, () => this.audioManager.playCoin());
         EventBus.on(GameEvents.UPGRADE_PURCHASED, () => this.audioManager.playPurchase());
         EventBus.on(GameEvents.WORKER_HIRED, () => this.audioManager.playPurchase());
+        EventBus.on(GameEvents.NIP_UPGRADE_PURCHASED, () => this.audioManager.playPurchase());
         EventBus.on(GameEvents.ACHIEVEMENT_UNLOCKED, () => this.audioManager.playUnlock());
         EventBus.on(GameEvents.LEVEL_UP, () => this.audioManager.playUnlock());
         EventBus.on(GameEvents.TIER_UP, () => this.audioManager.playUnlock());
@@ -96,6 +110,19 @@ class Game {
         });
         EventBus.on(GameEvents.WORKER_HIRED, (worker) => {
             this.newsTicker.addNews(`HIRED: ${worker.name} joined the crew.`);
+        });
+        EventBus.on(GameEvents.NIP_UPGRADE_PURCHASED, (data) => {
+            this.newsTicker.addNews(`NIP UPGRADE: ${data.upgrade.name} Lv.${data.newLevel}`);
+        });
+        EventBus.on(GameEvents.JOB_COMPLETED, (data) => {
+            if (data && data.contract) {
+                this.newsTicker.addNews(`CONTRACT COMPLETE: ${data.contract.label}`);
+            }
+        });
+        EventBus.on(GameEvents.JOB_FAILED, (data) => {
+            if (data && data.contract) {
+                this.newsTicker.addNews(`CONTRACT FAILED: ${data.contract.label}`);
+            }
         });
     }
 
@@ -129,6 +156,9 @@ class Game {
         // Update worker auto-repair
         this.workerSystem.update(deltaMs);
 
+        // Update job board timers/contracts
+        this.jobBoardSystem.update(deltaMs);
+
         // Update car queue
         this.carQueueSystem.update(deltaMs);
 
@@ -157,7 +187,7 @@ class Game {
         // Update queue display periodically
         this.uiManager.updateCarQueue(this.state.carQueue);
         this.uiManager.updateQueueStatus(this.carQueueSystem.getQueueInfo());
-        this.uiManager.updateCombo(this.clickSystem.getCombo());
+        this.uiManager.updateCombo(this.clickSystem.getCombo(), this.clickSystem.getMaxCombo());
 
         // Update progression UI
         this.uiManager.updateProgressionUI(this.progressionSystem.getProgressInfo());
@@ -174,10 +204,10 @@ class Game {
                 btn.classList.remove('hidden');
                 btn.textContent = `ASCENSION AVAIL (+${claimable})`;
             } else {
-                // If they have prestige currency already, allow them to open it to check stats
-                if (this.state.prestigeCurrency > 0) {
+                // If they have earned any Nip, keep this available as a shop/status entrypoint.
+                if ((this.state.totalPrestigeEarned || 0) > 0) {
                     btn.classList.remove('hidden');
-                    btn.textContent = `ASCENSION STATUS`;
+                    btn.textContent = `NIP SHOP (${this.state.prestigeCurrency})`;
                 } else {
                     btn.classList.add('hidden');
                 }
@@ -191,8 +221,8 @@ class Game {
 
         const claimable = this.prestigeSystem.calculateClaimableNip();
         const current = this.state.prestigeCurrency;
-        const newTotal = current + claimable;
-        const newMultiplier = (1 + newTotal * 0.05).toFixed(2);
+        const earnedTotal = (this.state.totalPrestigeEarned || 0) + claimable;
+        const newMultiplier = (1 + earnedTotal * 0.05).toFixed(2);
 
         document.getElementById('current-nip').textContent = current;
         document.getElementById('claimable-nip').textContent = claimable > 0 ? `+${claimable}` : '0';
@@ -208,12 +238,67 @@ class Game {
             }
         }
 
+        this.renderNipShop();
         modal.classList.remove('hidden');
     }
 
     hideAscensionModal() {
         const modal = document.getElementById('ascension-modal');
         if (modal) modal.classList.add('hidden');
+    }
+
+    /**
+     * Render Nip shop rows inside the ascension modal.
+     */
+    renderNipShop() {
+        const listEl = document.getElementById('nip-shop-list');
+        const balanceEl = document.getElementById('nip-balance');
+        if (!listEl || !balanceEl) return;
+
+        balanceEl.textContent = String(this.state.prestigeCurrency);
+        listEl.innerHTML = '';
+
+        const upgrades = this.nipShopSystem.getAllUpgradeInfo();
+        upgrades.forEach((upgrade) => {
+            const row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'nip-shop-item';
+
+            if (upgrade.isMaxed) row.classList.add('maxed');
+            if (!upgrade.canPurchase) row.classList.add('disabled');
+
+            const costText = upgrade.isMaxed
+                ? 'MAXED'
+                : `${upgrade.cost} NIP`;
+
+            row.innerHTML = `
+                <div class="nip-shop-header">
+                    <span class="nip-shop-name">${upgrade.name}</span>
+                    <span class="nip-shop-cost">${costText}</span>
+                </div>
+                <div class="nip-shop-desc">${upgrade.description}</div>
+                <div class="nip-shop-level">Lv ${upgrade.level} / ${upgrade.maxLevel}</div>
+            `;
+
+            if (!upgrade.isMaxed && upgrade.canPurchase) {
+                row.addEventListener('click', () => {
+                    const purchased = this.nipShopSystem.purchase(upgrade.id);
+                    if (!purchased) return;
+
+                    EventBus.emit(GameEvents.NOTIFICATION, {
+                        message: `Purchased Nip upgrade: ${upgrade.name}`
+                    });
+
+                    this.refreshUI();
+                    this.checkAscensionStatus();
+                    this.openAscensionModal();
+                });
+            } else {
+                row.disabled = true;
+            }
+
+            listEl.appendChild(row);
+        });
     }
 
     /**
@@ -260,6 +345,22 @@ class Game {
             const touch = event.touches[0];
             handlePointer(touch.clientX, touch.clientY);
         }, { passive: false });
+
+        clickArea.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                this.triggerCenterRepairClick();
+            }
+        });
+    }
+
+    triggerCenterRepairClick() {
+        const rect = this.renderer.canvas.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+
+        const centerX = rect.width * 0.5;
+        const centerY = rect.height * 0.62;
+        this.handleClick(centerX, centerY);
     }
 
     /**
@@ -322,9 +423,12 @@ class Game {
         if (ascendBtn) {
             ascendBtn.addEventListener('click', () => {
                 if (this.prestigeSystem.prestige()) {
+                    this.carQueueSystem.forceSpawn();
+                    this.jobBoardSystem.refreshContracts(true);
                     this.saveManager.save(); // Save the new state immediately
                     this.hideAscensionModal();
                     this.refreshUI(); // Refresh everything
+                    this.checkAscensionStatus();
 
                     // Particle explosion for effect
                     this.particleSystem.spawnConfetti(320, 288);
@@ -339,6 +443,179 @@ class Game {
                 this.hideAscensionModal();
             });
         }
+    }
+
+    setupSidebarTabs() {
+        const tabsContainer = document.getElementById('sidebar-tabs');
+        if (!tabsContainer) return;
+
+        this.sidebarTabs = Array.from(tabsContainer.querySelectorAll('.sidebar-tab'));
+        this.sidebarPanels = Array.from(document.querySelectorAll('#sidebar .tab-panel'));
+        if (this.sidebarTabs.length === 0 || this.sidebarPanels.length === 0) return;
+
+        this.sidebarTabs.forEach((tab) => {
+            tab.addEventListener('click', () => {
+                this.setMobileSidebarPanel(tab.dataset.panel || 'garage');
+            });
+        });
+
+        this.mobileSidebarQuery = window.matchMedia('(max-width: 900px)');
+        const applyForViewport = () => {
+            if (!this.mobileSidebarQuery.matches) {
+                this.sidebarPanels.forEach((panel) => {
+                    panel.classList.remove('mobile-hidden');
+                    panel.removeAttribute('aria-hidden');
+                });
+                this.sidebarTabs.forEach((tab) => {
+                    const active = tab.dataset.panel === this.activeMobilePanel;
+                    tab.classList.toggle('active', active);
+                    tab.setAttribute('aria-pressed', String(active));
+                });
+                return;
+            }
+            this.setMobileSidebarPanel(this.activeMobilePanel);
+        };
+
+        if (this.mobileSidebarQuery.addEventListener) {
+            this.mobileSidebarQuery.addEventListener('change', applyForViewport);
+        } else if (this.mobileSidebarQuery.addListener) {
+            this.mobileSidebarQuery.addListener(applyForViewport);
+        }
+
+        applyForViewport();
+    }
+
+    setupPanelCollapsibles() {
+        this.collapsiblePanels = Array.from(
+            document.querySelectorAll('#sidebar details.panel-collapsible')
+        );
+        if (this.collapsiblePanels.length === 0) return;
+
+        this.sidebarPanelState = this.readSidebarPanelState();
+
+        this.collapsiblePanels.forEach((detailsEl) => {
+            const panelEl = detailsEl.closest('.ui-panel');
+            const panelKey = panelEl && panelEl.id ? panelEl.id : detailsEl.id;
+            if (!panelKey) return;
+
+            if (Object.prototype.hasOwnProperty.call(this.sidebarPanelState, panelKey)) {
+                detailsEl.open = Boolean(this.sidebarPanelState[panelKey]);
+            }
+
+            detailsEl.addEventListener('toggle', () => {
+                this.sidebarPanelState[panelKey] = detailsEl.open;
+                this.writeSidebarPanelState();
+            });
+        });
+    }
+
+    readSidebarPanelState() {
+        try {
+            const raw = localStorage.getItem(this.sidebarPanelStorageKey);
+            if (!raw) return {};
+
+            const parsed = JSON.parse(raw);
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    writeSidebarPanelState() {
+        try {
+            localStorage.setItem(
+                this.sidebarPanelStorageKey,
+                JSON.stringify(this.sidebarPanelState || {})
+            );
+        } catch (error) {
+            // Ignore storage failures (private mode/quota) and keep runtime behavior.
+        }
+    }
+
+    setMobileSidebarPanel(panelName) {
+        this.activeMobilePanel = panelName || 'garage';
+        const isMobile = this.mobileSidebarQuery
+            ? this.mobileSidebarQuery.matches
+            : window.matchMedia('(max-width: 900px)').matches;
+
+        this.sidebarTabs.forEach((tab) => {
+            const active = tab.dataset.panel === this.activeMobilePanel;
+            tab.classList.toggle('active', active);
+            tab.setAttribute('aria-pressed', String(active));
+        });
+
+        this.sidebarPanels.forEach((panel) => {
+            if (!isMobile) {
+                panel.classList.remove('mobile-hidden');
+                panel.removeAttribute('aria-hidden');
+                return;
+            }
+
+            const visible = panel.dataset.panel === this.activeMobilePanel;
+            panel.classList.toggle('mobile-hidden', !visible);
+            panel.setAttribute('aria-hidden', String(!visible));
+        });
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (event) => {
+            if (event.defaultPrevented) return;
+            if (event.metaKey || event.ctrlKey || event.altKey) return;
+            if (this.isTypingTarget(event.target)) return;
+
+            const key = event.key.toLowerCase();
+            if (event.key === 'Escape') {
+                if (this.closeTopModal()) {
+                    event.preventDefault();
+                }
+                return;
+            }
+
+            if (key === 's') {
+                event.preventDefault();
+                this.saveManager.save();
+                return;
+            }
+
+            if (key === 'o') {
+                event.preventDefault();
+                const isOpen = this.settingsModal && !this.settingsModal.classList.contains('hidden');
+                if (isOpen) {
+                    this.closeSettings();
+                } else {
+                    this.openSettings();
+                }
+            }
+        });
+    }
+
+    isTypingTarget(target) {
+        if (!target) return false;
+        const tagName = target.tagName;
+        return target.isContentEditable ||
+            tagName === 'INPUT' ||
+            tagName === 'TEXTAREA' ||
+            tagName === 'SELECT';
+    }
+
+    closeTopModal() {
+        const ascensionModal = document.getElementById('ascension-modal');
+        if (ascensionModal && !ascensionModal.classList.contains('hidden')) {
+            this.hideAscensionModal();
+            return true;
+        }
+
+        if (this.confirmModal && !this.confirmModal.classList.contains('hidden')) {
+            this.hideConfirm();
+            return true;
+        }
+
+        if (this.settingsModal && !this.settingsModal.classList.contains('hidden')) {
+            this.closeSettings();
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -503,6 +780,9 @@ class Game {
         this.shopUI.renderUpgrades();
         this.shopUI.renderWorkers();
         this.statsUI.forceUpdate();
+        if (this.jobBoardUI) {
+            this.jobBoardUI.render();
+        }
     }
 
     /**
@@ -540,8 +820,11 @@ class Game {
     startNewGame() {
         this.hideStartModal();
         this.state.reset();
+        this.state.recalculateStats();
+        this.jobBoardSystem.refreshContracts(true);
         this.carQueueSystem.forceSpawn();
         this.refreshUI();
+        this.checkAscensionStatus();
         EventBus.emit(GameEvents.NOTIFICATION, { message: 'Started a new garage run!' });
         this.startRuntime();
     }
@@ -558,9 +841,11 @@ class Game {
         }
 
         this.state.recalculateStats();
+        this.jobBoardSystem.reconcileAfterLoad();
         this.ensureActiveCar();
         this.refreshUI();
         this.hideStartModal();
+        this.checkAscensionStatus();
         EventBus.emit(GameEvents.NOTIFICATION, { message: 'Loaded saved game!' });
 
         if (offlineProgress.earnings > 0) {
@@ -672,6 +957,7 @@ class Game {
 
                     // Recalculate all stats from loaded data
                     this.state.recalculateStats();
+                    this.jobBoardSystem.reconcileAfterLoad();
                     console.log('Stats recalculated:', {
                         clickPower: this.state.clickPower,
                         autoRepairRate: this.state.autoRepairRate,
@@ -681,6 +967,7 @@ class Game {
                     this.ensureActiveCar();
                     this.refreshUI();
                     this.uiManager.updateQueueStatus(this.carQueueSystem.getQueueInfo());
+                    this.checkAscensionStatus();
 
                     EventBus.emit(GameEvents.NOTIFICATION, { message: 'Game loaded!' });
                     this.closeSettings();
@@ -736,9 +1023,11 @@ class Game {
 
                 if (success) {
                     this.state.recalculateStats();
+                    this.jobBoardSystem.reconcileAfterLoad();
                     this.ensureActiveCar();
                     this.refreshUI();
                     this.updateSaveStatus();
+                    this.checkAscensionStatus();
 
                     EventBus.emit(GameEvents.NOTIFICATION, { message: 'Save imported!' });
                     textarea.value = '';
@@ -796,6 +1085,7 @@ class Game {
         this.saveManager.save();
         this.saveManager.stopAutoSave();
         this.statsUI.stop();
+        if (this.jobBoardUI) this.jobBoardUI.stopTimer();
         this.gameLoop.stop();
         this.audioManager.stop();
         console.log('Game shutdown');
@@ -822,8 +1112,9 @@ class Game {
     reset(keepPrestige = false) {
         // Save prestige if keeping
         const prestigeData = keepPrestige ? {
-            prestigePoints: this.state.prestigePoints,
-            prestigeMultiplier: this.state.prestigeMultiplier
+            prestigeCurrency: this.state.prestigeCurrency,
+            totalPrestigeEarned: this.state.totalPrestigeEarned,
+            nipUpgrades: { ...this.state.nipUpgrades }
         } : null;
 
         // Reset state
@@ -831,17 +1122,22 @@ class Game {
 
         // Restore prestige
         if (prestigeData) {
-            this.state.prestigePoints = prestigeData.prestigePoints;
-            this.state.prestigeMultiplier = prestigeData.prestigeMultiplier;
+            this.state.prestigeCurrency = prestigeData.prestigeCurrency;
+            this.state.totalPrestigeEarned = prestigeData.totalPrestigeEarned;
+            this.state.nipUpgrades = { ...prestigeData.nipUpgrades };
+            this.state.recalculateStats();
         }
 
         // Spawn initial car
         this.carQueueSystem.forceSpawn();
+        this.jobBoardSystem.refreshContracts(true);
 
         // Update UI
         this.uiManager.updateAll();
         this.shopUI.renderUpgrades();
         this.shopUI.renderWorkers();
+        if (this.jobBoardUI) this.jobBoardUI.render();
+        this.checkAscensionStatus();
 
         // Delete save
         this.saveManager.deleteSave();
