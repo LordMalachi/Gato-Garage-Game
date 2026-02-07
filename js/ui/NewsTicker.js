@@ -9,7 +9,7 @@ class NewsTicker {
         this.container = document.getElementById('news-ticker');
 
         // Scroll speed in pixels per second
-        this.scrollSpeed = 60;
+        this.scrollSpeed = 42;
 
         // Current scroll position (pixels)
         this.scrollX = 0;

@@ -959,12 +959,15 @@ class Renderer {
      * Draw car queue in background
      */
     drawCarQueue(carQueue) {
-        // Queue label
-        this.drawText('QUEUE', 10, this.internalHeight - 8, this.colors.gatoGreen, 6);
-
+        const tickerHeight = 28;
+        const slotWidth = 48;
+        const slotHeight = 32;
         const startX = 50;
-        const y = this.internalHeight - 45;
         const spacing = 55;
+        const y = this.internalHeight - tickerHeight - slotHeight;
+
+        // Queue label
+        this.drawText('QUEUE', 10, y + slotHeight - 2, this.colors.gatoGreen, 6);
 
         carQueue.forEach((car, index) => {
             const x = startX + index * spacing;
@@ -974,8 +977,8 @@ class Renderer {
         // Empty slots
         for (let i = carQueue.length; i < 5; i++) {
             const x = startX + i * spacing;
-            this.drawRect(x, y, 48, 32, 'rgba(0,0,0,0.3)');
-            this.drawRectOutline(x, y, 48, 32, this.colors.bg3, 1);
+            this.drawRect(x, y, slotWidth, slotHeight, 'rgba(0,0,0,0.3)');
+            this.drawRectOutline(x, y, slotWidth, slotHeight, this.colors.bg3, 1);
         }
     }
 

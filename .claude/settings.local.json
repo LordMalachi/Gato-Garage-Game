@@ -5,7 +5,8 @@
       "Bash(dir:*)",
       "WebFetch(domain:gist.github.com)",
       "WebFetch(domain:github.com)",
-      "Bash(open:*)"
+      "Bash(open:*)",
+      "Bash(wc:*)"
     ]
   }
 }
